@@ -1,6 +1,7 @@
 import numpy
 import math
 import random
+import functools
 
 def log_uniform (n, Tmin = 10, Tmax = 1000, Tg = 10):
   R = numpy.random.uniform(math.log(Tmin), math.log(Tmax + Tg), n)
@@ -28,8 +29,23 @@ def UUnifast_discard (n, maxU):
   flag, U = UUnifast_discard_step(n, maxU)
   while not flag:
     flag, U = UUnifast_discard_step(n, maxU)
-  print(U)
   return U
+
+def sort_tasks_criticality (t1, t2):
+  if t1['HI'] and not t2['HI']:
+    return -1
+  elif not t1['HI'] and t2['HI']:
+    return 1
+  else:
+    if t1['U'] >= t2['U']:
+      return -1
+    else:
+      return 1
+
+def sort_tasks_period (t1, t2):
+  if t1['D'] >= t2['D']:
+    return -1
+  return 1
 
 def generate_taskset (n, p, f, maxU):
   HI_tot = n * p
@@ -38,7 +54,7 @@ def generate_taskset (n, p, f, maxU):
   T = log_uniform(n)
   taskset = []
   for i in range(n):
-    new_task = {'HI': False, 'C(HI)': -1, 'C(LO)': -1, 'U': U[i], 'P': 0, 'D': T[i], 'J': 0}
+    new_task = {'HI': False, 'C(HI)': -1, 'C(LO)': -1, 'U': U[i], 'D': T[i], 'J': 0}
     HI_flag = random.choice([True, False])
     if HI_flag and HI_tot <= 0:
       HI_flag = False
@@ -49,14 +65,14 @@ def generate_taskset (n, p, f, maxU):
       new_task['HI'] = True
       new_task['C(HI)'] = U[i] * T[i]
       new_task['C(LO)'] = new_task['C(HI)'] / f
-      new_task['P'] = 1
     else:
       new_task['C(LO)'] = U[i] * T[i]
-      new_task['P'] = 0
-    # TODO: test with random priority for all tasks
     taskset.append(new_task)
+  # Assign RM priority
+  taskset.sort(key=functools.cmp_to_key(sort_tasks_period))
+  for i in range(len(taskset) - 1, -1, -1):
+    taskset[i]['P'] = i
+  # Sort by criticality and utilization
+  taskset.sort(key=functools.cmp_to_key(sort_tasks_criticality))
   return taskset
-
-print(generate_taskset(24, 0.5, 2, 3.2))
-
 
