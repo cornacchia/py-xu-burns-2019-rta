@@ -54,7 +54,7 @@ def generate_taskset (n, p, f, maxU):
   T = log_uniform(n)
   taskset = []
   for i in range(n):
-    new_task = {'HI': False, 'C(HI)': -1, 'C(LO)': -1, 'U': U[i], 'D': T[i], 'J': 0}
+    new_task = {'HI': False, 'C(HI)': -1, 'C(LO)': -1, 'U': U[i], 'D': T[i], 'J': 0, 'migrating': False, 'migration_route': []}
     HI_flag = random.choice([True, False])
     if HI_flag and HI_tot <= 0:
       HI_flag = False
@@ -67,6 +67,7 @@ def generate_taskset (n, p, f, maxU):
       new_task['C(LO)'] = new_task['C(HI)'] / f
     else:
       new_task['C(LO)'] = U[i] * T[i]
+      LO_tot -= 1
     taskset.append(new_task)
   # Assign RM priority
   taskset.sort(key=functools.cmp_to_key(sort_tasks_period))
