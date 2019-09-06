@@ -55,14 +55,14 @@ def calcRiHI (task, hpHI):
       return newRiHI
     RiHI = newRiHI
 
-def calcRiHI_star (task, hpHI, hpLO):
+def calcRiHI_star (task, hpHI, hpLO, RiLO):
   RiHI_star = task['C(HI)']
   while True:
     newRiHI_star = task['C(HI)']
     for hp_task in hpHI:
       newRiHI_star += math.ceil(RiHI_star / hp_task['D']) * hp_task['C(HI)']
     for hp_task in hpLO:
-      newRiHI_star += math.ceil(RiHI_star / hp_task['D']) * hp_task['C(LO)']
+      newRiHI_star += math.ceil(RiLO / hp_task['D']) * hp_task['C(LO)']
     if newRiHI_star > task['D']:
       return None
     if newRiHI_star == RiHI_star:
@@ -81,7 +81,7 @@ def rta_no_migration (tasks):
       RiHI = calcRiHI(task, hpHI)
       if RiHI is None:
         return False
-      RiHI_star = calcRiHI_star(task, hpHI, hpLO)
+      RiHI_star = calcRiHI_star(task, hpHI, hpLO, RiLO)
       if RiHI_star is None:
         return False
   return True
@@ -116,8 +116,54 @@ def verify_no_migration (taskset):
       return False
   return True
 
-def verify_model_1 (taskset):
+def rta_base (tasks):
   pass
+
+def verify_model_1 (taskset):
+  cores = {
+    'c1': {'tasks': [], 'considered': False, 'utilization': 0},
+    'c2': {'tasks': [], 'considered': False, 'utilization': 0},
+    'c3': {'tasks': [], 'considered': False, 'utilization': 0},
+    'c4': {'tasks': [], 'considered': False, 'utilization': 0}
+  }
+  for task in taskset:
+    for c in cores:
+      core = cores[c]
+      core['considered'] = False
+    assigned = False
+    count = 0
+    while not assigned and count < 4:
+      count += 1
+      next_core = worst_fit_bin_packing(task, cores)
+      if next_core is not None:
+        cores[next_core]['considered'] = True
+        # Verify Response Time Analysis
+        tasks = cores[next_core]['tasks'].copy()
+        tasks.append(task)
+        if rta_base (tasks):
+          cores[next_core]['tasks'].append(task)
+          cores[next_core]['utilization'] += task['U']
+          assigned = True
+    if not assigned and not task['HI']:
+      # Try to assign migratable
+      for c in cores:
+        core = cores[c]
+        core['considered'] = False
+      assigned = False
+      count = 0
+      while not assigned and count < 4:
+        count += 1
+        next_core = worst_fit_bin_packing(task, cores)
+        if next_core is not None:
+          cores[next_core]['considered'] = True
+          # Verify Response Time Analysis
+          tasks = cores[next_core]['tasks'].copy()
+          tasks.append(task)
+          if rta_base (tasks):
+            cores[next_core]['tasks'].append(task)
+            cores[next_core]['utilization'] += task['U']
+            assigned = True
+  return True
 
 def verify_model_2 (taskset):
   pass

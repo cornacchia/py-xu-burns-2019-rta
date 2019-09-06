@@ -76,3 +76,8 @@ def generate_taskset (n, p, f, maxU):
   taskset.sort(key=functools.cmp_to_key(sort_tasks_criticality))
   return taskset
 
+def calc_total_utilization (taskset):
+  result = 0
+  for task in taskset:
+    result += task['U']
+  return result
