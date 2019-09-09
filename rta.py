@@ -323,10 +323,11 @@ def riHI_1Step (task, chpHI, chpLO):
 
 def calcRiMIX (core, cores):
   for task in cores[core]['tasks']:
-    chp = findCHp(task, core, cores[core]['tasks'])
-    chpMIG = findCHpMIG(task, core, cores[core]['tasks'])
-    if riMIXStep(task, chp, chpMIG) is None:
-      return False
+    if not task['migrating']:
+      chp = findCHp(task, core, cores[core]['tasks'])
+      chpMIG = findCHpMIG(task, core, cores[core]['tasks'])
+      if riMIXStep(task, chp, chpMIG) is None:
+        return False
   return True
 
 def calcRiLO_1 (core, cores):
@@ -364,6 +365,8 @@ def verify_mode_changes (cores):
       # RTA for new crit core
       if not calcRiMIX(crit_core, verification_cores):
         return False
+      # Remove migrated tasks from crit_core
+      verification_cores[crit_core]['tasks'] = new_crit_core_tasks
       # RTA for migration cores
       for m_c in migration_cores:
         if not calcRiLO_1(m_c, verification_cores):
