@@ -16,6 +16,13 @@ CORES_MODE_CHANGES = [
   ['c4', 'c3']
 ]
 
+CORES_NO_MIGRATION = {
+  'c1': {'tasks': [], 'considered': False, 'utilization': 0},
+  'c2': {'tasks': [], 'considered': False, 'utilization': 0},
+  'c3': {'tasks': [], 'considered': False, 'utilization': 0},
+  'c4': {'tasks': [], 'considered': False, 'utilization': 0}
+}
+
 CORES_MODEL_1 = {
     'c1': {
       'tasks': [],
@@ -61,24 +68,36 @@ def worst_fit_bin_packing (task, cores):
       min_utilization = core['utilization']
   return result
 
-def findHp (task, tasks):
+def findHp (i, tasks):
   result = []
-  for other_task in tasks:
-    if other_task['P'] > task['P']:
+  task = tasks[i]
+  for j in range(len(tasks)):
+    if j == i:
+      continue
+    other_task = tasks[j]
+    if other_task['P'] < 0 or other_task['P'] > task['P']:
       result.append(other_task)
   return result
 
-def findHpHI (task, tasks):
+def findHpHI (i, tasks):
   result = []
-  for other_task in tasks:
-    if other_task['HI'] and other_task['P'] > task['P']:
+  task = tasks[i]
+  for j in range(len(tasks)):
+    if j == i:
+      continue
+    other_task = tasks[j]
+    if other_task['HI'] and (other_task['P'] < 0 or other_task['P'] > task['P']):
       result.append(other_task)
   return result
 
-def findHpLO (task, tasks):
+def findHpLO (i, tasks):
   result = []
-  for other_task in tasks:
-    if not other_task['HI'] and other_task['P'] > task['P']:
+  task = tasks[i]
+  for j in range(len(tasks)):
+    if j == i:
+      continue
+    other_task = tasks[j]
+    if not other_task['HI'] and (other_task['P'] < 0 or other_task['P'] > task['P']):
       result.append(other_task)
   return result
 
@@ -91,22 +110,6 @@ def calcRiLO (task, hp):
     if newRiLO > task['D']:
       return None
     if newRiLO == RiLO:
-      return newRiLO
-    RiLO = newRiLO
-
-def calcRiLO_SE (task, hp):
-  RiLO = task['C(LO)']
-  while True:
-    newRiLO = task['C(LO)']
-    for hp_task in hp:
-      newRiLO += math.ceil(RiLO / hp_task['D']) * hp_task['C(LO)']
-    if newRiLO > task['D']:
-      return None
-    if newRiLO == RiLO:
-      # Update Jitter and Deadline
-      task['J'] = task['J'] + (RiLO - task['C(LO)'])
-      task['D1'] = task['D'] - (RiLO - task['C(LO)'])
-      task['Ri(LO)'] = RiLO
       return newRiLO
     RiLO = newRiLO
 
@@ -137,34 +140,81 @@ def calcRiHI_star (task, hpHI, hpLO, RiLO):
     RiHI_star = newRiHI_star
 
 def rta_no_migration (tasks):
-  for task in tasks:
-    hp = findHp(task, tasks)
+  print('RTA_NO_MIG', len(tasks), tasks)
+  for i in range(len(tasks)):
+    task = tasks[i]
+    hp = findHp(i, tasks)
+    print(task['D'], len(hp))
     RiLO = calcRiLO(task, hp)
+    print('RiLO', RiLO)
     if RiLO is None:
       return False
     if task['HI']:
-      hpHI = findHpHI(task, tasks)
-      hpLO = findHpLO(task, tasks)
+      hpHI = findHpHI(i, tasks)
+      hpLO = findHpLO(i, tasks)
       RiHI = calcRiHI(task, hpHI)
+      print('RiHI', RiHI)
       if RiHI is None:
         return False
       RiHI_star = calcRiHI_star(task, hpHI, hpLO, RiLO)
+      print('RiHI_star', RiHI_star)
       if RiHI_star is None:
         return False
   return True
 
+def audsley_rta_no_migration (i, tasks):
+  task = tasks[i]
+  hp = findHp(i, tasks)
+  RiLO = calcRiLO(task, hp)
+  if RiLO is None:
+    return False
+  if task['HI']:
+    hpHI = findHpHI(i, tasks)
+    hpLO = findHpLO(i, tasks)
+    RiHI = calcRiHI(task, hpHI)
+    if RiHI is None:
+      return False
+    RiHI_star = calcRiHI_star(task, hpHI, hpLO, RiLO)
+    if RiHI_star is None:
+      return False
+  return True
+
+def find_lon_dead(tasks, HI):
+  max_deadline = -1
+  result = -1
+  for i in range(len(tasks)):
+    task = tasks[i]
+    if task['P'] < 0 and task['HI'] == HI and task['D'] > max_deadline:
+      max_deadline = task['D']
+      result = i
+  return result
+
+def audsley_no_migration (core):
+  priority_levels = len(core['tasks'])
+  verification_tasks = copy.deepcopy(core['tasks'])
+  for p_lvl in range(priority_levels):
+    lon_dead_HI_i = find_lon_dead(verification_tasks, True)
+    if lon_dead_HI_i >= 0:
+      lon_dead_HI = verification_tasks[lon_dead_HI_i]
+      lon_dead_HI['P'] = p_lvl
+      if audsley_rta_no_migration(lon_dead_HI_i, verification_tasks):
+        continue
+      lon_dead_HI['P'] = -1
+    lon_dead_LO_i = find_lon_dead(verification_tasks, False)
+    if lon_dead_LO_i > 0:
+      lon_dead_LO = verification_tasks[lon_dead_LO_i]
+      lon_dead_LO['P'] = p_lvl
+      if audsley_rta_no_migration(lon_dead_LO_i, verification_tasks):
+        continue
+      lon_dead_LO['P'] = -1
+    return False
+  return True
 
 def verify_no_migration (taskset):
-  cores = {
-    'c1': {'tasks': [], 'considered': False, 'utilization': 0},
-    'c2': {'tasks': [], 'considered': False, 'utilization': 0},
-    'c3': {'tasks': [], 'considered': False, 'utilization': 0},
-    'c4': {'tasks': [], 'considered': False, 'utilization': 0}
-  }
+  global CORES_NO_MIGRATION
+  cores = copy.deepcopy(CORES_NO_MIGRATION)
   for task in taskset:
-    for c in cores:
-      core = cores[c]
-      core['considered'] = False
+    reset_considered(cores)
     assigned = False
     count = 0
     while not assigned and count < 4:
@@ -173,9 +223,9 @@ def verify_no_migration (taskset):
       if next_core is not None:
         cores[next_core]['considered'] = True
         # Verify Response Time Analysis
-        tasks = cores[next_core]['tasks'].copy()
-        tasks.append(task)
-        if rta_no_migration (tasks):
+        verification_core = copy.deepcopy(cores[next_core])
+        verification_core['tasks'].append(task)
+        if audsley_no_migration(verification_core):
           cores[next_core]['tasks'].append(task)
           cores[next_core]['utilization'] += task['U']
           assigned = True
@@ -223,14 +273,29 @@ def verify_base (task, cores):
     if next_core is not None:
       cores[next_core]['considered'] = True
       # Verify Response Time Analysis
-      tasks = cores[next_core]['tasks'].copy()
-      tasks.append(task)
-      if rta_base (tasks):
+      verification_core = copy.deepcopy(cores[next_core])
+      verification_core['tasks'].append(task)
+      if audsley_no_migration(verification_core):
         cores[next_core]['tasks'].append(task)
         cores[next_core]['utilization'] += task['U']
         assigned = True
-  reset_considered(cores)
   return assigned
+
+def calcRiLO_SE (task, hp):
+  RiLO = task['C(LO)']
+  while True:
+    newRiLO = task['C(LO)']
+    for hp_task in hp:
+      newRiLO += math.ceil(RiLO / hp_task['D']) * hp_task['C(LO)']
+    if newRiLO > task['D']:
+      return None
+    if newRiLO == RiLO:
+      # Update Jitter and Deadline
+      task['J'] = task['J'] + (RiLO - task['C(LO)'])
+      task['D1'] = task['D'] - (RiLO - task['C(LO)'])
+      task['Ri(LO)'] = RiLO
+      return newRiLO
+    RiLO = newRiLO
 
 def verify_steady (cores):
   for c in cores:
@@ -444,7 +509,4 @@ def verify_model_2 (taskset):
   pass
 
 def verify_model_4 (taskset):
-  pass
-
-def verify_taskset (taskset):
   pass

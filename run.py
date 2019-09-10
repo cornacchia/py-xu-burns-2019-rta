@@ -3,7 +3,11 @@ from rta import verify_no_migration, verify_model_1
 from plot import plot_data
 import copy
 
+NO_MIG = True
+MODEL_1 = False
+
 def run_first ():
+  global NO_MIG, MODEL_1
   res_no_migration_global = []
   res_model_1_global = []
   U = 3.2
@@ -15,25 +19,28 @@ def run_first ():
     res_model_1 = [U, 0]
     for n_task in range(number_of_tests):
       new_taskset = generate_taskset(24, 0.5, 2, U)
-      if verify_no_migration(copy.deepcopy(new_taskset)):
+      if NO_MIG and verify_no_migration(copy.deepcopy(new_taskset)):
         res_no_migration[1] += 1
-      if verify_model_1(copy.deepcopy(new_taskset)):
+      if MODEL_1 and verify_model_1(copy.deepcopy(new_taskset)):
         res_model_1[1] += 1
     res_no_migration[1] = res_no_migration[1] * 100 / number_of_tests
     res_model_1[1] = res_model_1[1] * 100 / number_of_tests
     res_no_migration_global.append(res_no_migration)
     res_model_1_global.append(res_model_1)
     U += step
+  data_to_plot = []
+  if NO_MIG:
+    data_to_plot.append({'label': 'No Migration', 'data': res_no_migration_global})
+  if MODEL_1:
+    data_to_plot.append({'label': 'Model 1', 'data': res_model_1_global})
   plot_data(
-    [
-      {'label': 'No Migration', 'data': res_no_migration_global},
-      {'label': 'Model 1', 'data': res_model_1_global}
-    ],
+    data_to_plot,
     'Utilization',
     'Schedulable Tasksets',
     '')
 
 def run_second ():
+  global NO_MIG, MODEL_1
   f_res_no_migration_global = []
   f_res_model_1 = []
   f = 1.25
@@ -51,24 +58,27 @@ def run_second ():
         new_taskset = generate_taskset(24, 0.5, f, U)
         taskset_utilization = calc_total_utilization(new_taskset)
         total_utilizations += taskset_utilization
-        if verify_no_migration(copy.deepcopy(new_taskset)):
+        if NO_MIG and verify_no_migration(copy.deepcopy(new_taskset)):
           total_schedulable_utilizations_no_mig += taskset_utilization
-        if verify_model_1(copy.deepcopy(new_taskset)):
+        if MODEL_1 and verify_model_1(copy.deepcopy(new_taskset)):
           total_schedulable_utilizations_model_1 += taskset_utilization
       U += step
     f_res_no_migration_global.append([f, total_schedulable_utilizations_no_mig / total_utilizations])
     f_res_model_1.append([f, total_schedulable_utilizations_model_1 / total_utilizations])
     f += f_step
+  data_to_plot = []
+  if NO_MIG:
+    data_to_plot.append({'label': 'No Migration', 'data': f_res_no_migration_global})
+  if MODEL_1:
+    data_to_plot.append({'label': 'Model 1', 'data': f_res_model_1})
   plot_data(
-    [
-      {'label': 'No Migration', 'data': f_res_no_migration_global},
-      {'label': 'Model 1', 'data': f_res_model_1}
-      ],
+    data_to_plot,
     'Criticality Factor',
     'Weighted Schedulability',
     '')
 
 def run_third ():
+  global NO_MIG, MODEL_1
   p_res_no_migration_global = []
   p_res_model_1 = []
   p = 0.1
@@ -86,19 +96,21 @@ def run_third ():
         new_taskset = generate_taskset(24, p, 2, U)
         taskset_utilization = calc_total_utilization(new_taskset)
         total_utilizations += taskset_utilization
-        if verify_no_migration(copy.deepcopy(new_taskset)):
+        if NO_MIG and verify_no_migration(copy.deepcopy(new_taskset)):
           total_schedulable_utilizations_no_mig += taskset_utilization
-        if verify_model_1(copy.deepcopy(new_taskset)):
+        if MODEL_1 and verify_model_1(copy.deepcopy(new_taskset)):
           total_schedulable_utilizations_model_1 += taskset_utilization
       U += step
     p_res_no_migration_global.append([p, total_schedulable_utilizations_no_mig / total_utilizations])
     p_res_model_1.append([p, total_schedulable_utilizations_model_1 / total_utilizations])
     p += p_step
+  data_to_plot = []
+  if NO_MIG:
+    data_to_plot.append({'label': 'No Migration', 'data': p_res_no_migration_global})
+  if MODEL_1:
+    data_to_plot.append({'label': 'Model 1', 'data': p_res_model_1})
   plot_data(
-    [
-      {'label': 'No Migration', 'data': p_res_no_migration_global},
-      {'label': 'Model 1', 'data': p_res_model_1}
-      ],
+    data_to_plot,
     'Proportion of HI-crit tasks',
     'Weighted Schedulability',
     '')
@@ -125,5 +137,3 @@ def run_fourth ():
     n_res_no_migration_global.append([n, total_schedulable_utilizations / total_utilizations])
     n += n_step
   plot_data([{'label': 'No Migration', 'data': n_res_no_migration_global}], 'Tasksets size', 'Weighted Schedulability', '')
-
-run_first()
