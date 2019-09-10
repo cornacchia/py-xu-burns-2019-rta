@@ -105,7 +105,7 @@ def calcRiLO_SE (task, hp):
     if newRiLO == RiLO:
       # Update Jitter and Deadline
       task['J'] = task['J'] + (RiLO - task['C(LO)'])
-      task['D'] = task['D'] - (RiLO - task['C(LO)'])
+      task['D1'] = task['D'] - (RiLO - task['C(LO)'])
       task['Ri(LO)'] = RiLO
       return newRiLO
     RiLO = newRiLO
@@ -230,9 +230,7 @@ def verify_base (task, cores):
         cores[next_core]['utilization'] += task['U']
         assigned = True
   reset_considered(cores)
-  if not assigned:
-    return False
-  return True
+  return assigned
 
 def verify_steady (cores):
   for c in cores:
@@ -247,28 +245,28 @@ def verify_steady (cores):
 def findCHp (task, core, tasks):
   result = []
   for other_task in tasks:
-    if (not other_task['migrating'] or core not in other_task['migration_route']) and (other_task['P'] > task['P']):
+    if not other_task['migrating'] and (other_task['P'] > task['P']):
       result.append(other_task)
   return result
 
 def findCHpHI (task, core, tasks):
   result = []
   for other_task in tasks:
-    if other_task['HI'] and (not other_task['migrating'] or core not in other_task['migration_route']) and (other_task['P'] > task['P']):
+    if other_task['HI'] and (other_task['P'] > task['P']):
       result.append(other_task)
   return result
 
 def findCHpLO (task, core, tasks):
   result = []
   for other_task in tasks:
-    if not other_task['HI'] and (not other_task['migrating'] or core not in other_task['migration_route']) and (other_task['P'] > task['P']):
+    if not other_task['HI'] and (other_task['P'] > task['P']):
       result.append(other_task)
   return result
 
 def findCHpMIG (task, core, tasks):
   result = []
   for other_task in tasks:
-    if (other_task['migrating'] and core in other_task['migration_route']) and (other_task['P'] > task['P']):
+    if (other_task['migrating'] and core not in other_task['migration_route']) and (other_task['P'] > task['P']):
       result.append(other_task)
   return result
 
@@ -292,30 +290,51 @@ def riMIXStep (task, chp, chpMIG):
       return RiMIX
     RiMIX = newRiMIX
 
-def riLO_1Step (task, chp):
+def riLO_1Step (task, chp, core):
   RiLO_1 = task['C(LO)']
+  task_deadline = task['D']
+  if (task['migrating'] and core in task['migration_route']):
+    task_deadline = task['D1']
   while True:
     newRiLO_1 = task['C(LO)']
     for chp_task in chp:
-      newRiLO_1 += math.ceil((RiLO_1 + chp_task['J']) / chp_task['D']) * chp_task['C(LO)']
-    if newRiLO_1 > task['D']:
+      chp_jitter = 0
+      chp_deadline = chp_task['D']
+      if (chp_task['migrating'] and core in chp_task['migration_route']):
+        chp_jitter = chp_task['J']
+        chp_deadline = chp_task['D1']
+      newRiLO_1 += math.ceil((RiLO_1 + chp_jitter) / chp_deadline) * chp_task['C(LO)']
+    if newRiLO_1 > task_deadline:
       return None
     if newRiLO_1 == RiLO_1:
-      task['J'] = task['J'] + (RiLO_1 - task['C(LO)'])
-      task['D'] = task['D'] - (RiLO_1 - task['C(LO)'])
+      task['J2'] = task['J'] + (RiLO_1 - task['C(LO)'])
+      task['D2'] = task['D1'] - (RiLO_1 - task['C(LO)'])
       task['Ri(LO)'] = RiLO_1
       return RiLO_1
     RiLO_1 = newRiLO_1
 
-def riHI_1Step (task, chpHI, chpLO):
+def riHI_1Step (task, chpHI, chpLO, core):
   RiHI_1 = task['C(HI)']
+  task_deadline = task['D']
+  if (task['migrating'] and core == task['migration_route'][0]):
+    task_deadline = task['D1']
+  elif (task['migrating'] and core == task['migration_route'][1]):
+    task_deadline = task['D2']
   while True:
     newRiHI_1 = task['C(HI)']
     for chp_task in chpHI:
       newRiHI_1 += math.ceil(RiHI_1 / chp_task['D']) * chp_task['C(HI)']
     for chp_task in chpLO:
-      newRiHI_1 += math.ceil((task['Ri(LO)'] + chp_task['J']) / chp_task['D']) * chp_task['C(LO)']
-    if newRiHI_1 > task['D']:
+      chp_jitter = 0
+      chp_deadline = chp_task['D']
+      if (chp_task['migrating'] and core == chp_task['migration_route'][0]):
+        chp_jitter = chp_task['J']
+        chp_deadline = chp_task['D1']
+      elif (chp_task['migrating'] and core == chp_task['migration_route'][1]):
+        chp_jitter = chp_task['J2']
+        chp_deadline = chp_task['D2']
+      newRiHI_1 += math.ceil((task['Ri(LO)'] + chp_jitter) / chp_deadline) * chp_task['C(LO)']
+    if newRiHI_1 > task_deadline:
       return None
     if newRiHI_1 == RiHI_1:
       return RiHI_1
@@ -332,8 +351,9 @@ def calcRiMIX (core, cores):
 
 def calcRiLO_1 (core, cores):
   for task in cores[core]['tasks']:
-    chp = findCHp(task, core, core['tasks'])
-    if riLO_1Step(task, chp) is None:
+    #chp = findCHp(task, core, cores[core]['tasks'])
+    chp = findHp(task, cores[core]['tasks'])
+    if riLO_1Step(task, chp, core) is None:
       return False
   return True
 
@@ -342,7 +362,7 @@ def calcRiHI_1 (core, cores):
     if task['HI']:
       chpHI = findCHpHI(task, core, cores[core]['tasks'])
       chpLO = findCHpLO(task, core, cores[core]['tasks'])
-      if riHI_1Step(task, chpHI, chpLO) is None:
+      if riHI_1Step(task, chpHI, chpLO, core) is None:
         return False
   return True
 
@@ -358,7 +378,11 @@ def verify_mode_changes (cores):
         if not task['migrating']:
           new_crit_core_tasks.append(task)
         else:
-          migration_core = task['migration_route'][crit_count]
+          # Always attempt to migrate to the first migration core
+          migration_core = task['migration_route'][0]
+          # If it is already in HI-crit mode, migrate to the second
+          if crit_count > 0 and (migration_core == mode_change[0] or migration_core == crit_core):
+            migration_core = task['migration_route'][1]
           verification_cores[migration_core]['tasks'].append(task)
           if migration_core not in migration_cores:
             migration_cores.append(migration_core)
@@ -402,19 +426,10 @@ def verify_migration (task, cores):
             cores[next_core]['tasks'].append(task)
             cores[next_core]['utilization'] += task['U']
             break
+  reset_considered(cores)
   if not assigned:
     return False
   return True
-
-def count_HI(taskset):
-  hi = 0
-  lo = 0
-  for task in taskset:
-    if task['HI']:
-      hi += 1
-    else:
-      lo += 1
-  print(hi, lo)
 
 def verify_model_1 (taskset):
   global CORES_MODEL_1
