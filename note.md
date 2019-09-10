@@ -26,3 +26,14 @@ Provare a considerare l'ipotesi che alcuni task LO-crit abbiano priorità maggio
 2 - Forse aggiungere una spiegazione tipo quella di pag. 4
 3 - Non è spiegato come dividere i LO-crit task in migratable o non migratable: vedere XuBurns2015 (cfr. pag. 3 MAIN paper)
 
+## Note audsley:
+for each core in worst fit order
+  if not core FAIL
+  else assign task to core
+  verify audsley core steady mode
+    if not continue
+    else for each LO-crit task in descending priority (audsley steady)
+      for each migration group
+        verify audsley mode change (for each crit order audsley RiLO, RiHI ecc.)
+        if everything fine assign task to migration group
+      if not assigned FAIL

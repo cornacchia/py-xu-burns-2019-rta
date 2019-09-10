@@ -4,7 +4,7 @@ from plot import plot_data
 import copy
 
 NO_MIG = True
-MODEL_1 = False
+MODEL_1 = True
 
 def run_first ():
   global NO_MIG, MODEL_1
@@ -21,8 +21,10 @@ def run_first ():
       new_taskset = generate_taskset(24, 0.5, 2, U)
       if NO_MIG and verify_no_migration(copy.deepcopy(new_taskset)):
         res_no_migration[1] += 1
-      if MODEL_1 and verify_model_1(copy.deepcopy(new_taskset)):
         res_model_1[1] += 1
+      else:
+        if MODEL_1 and verify_model_1(copy.deepcopy(new_taskset)):
+          res_model_1[1] += 1
     res_no_migration[1] = res_no_migration[1] * 100 / number_of_tests
     res_model_1[1] = res_model_1[1] * 100 / number_of_tests
     res_no_migration_global.append(res_no_migration)
@@ -137,3 +139,5 @@ def run_fourth ():
     n_res_no_migration_global.append([n, total_schedulable_utilizations / total_utilizations])
     n += n_step
   plot_data([{'label': 'No Migration', 'data': n_res_no_migration_global}], 'Tasksets size', 'Weighted Schedulability', '')
+
+run_first()

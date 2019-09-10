@@ -1,5 +1,6 @@
 import math
 import copy
+import functools
 
 CORES_MODE_CHANGES = [
   ['c1', 'c2'],
@@ -162,7 +163,7 @@ def rta_no_migration (tasks):
         return False
   return True
 
-def audsley_rta_no_migration (i, tasks):
+def audsley_rta_no_migration (i, tasks, core):
   task = tasks[i]
   hp = findHp(i, tasks)
   RiLO = calcRiLO(task, hp)
@@ -189,7 +190,7 @@ def find_lon_dead(tasks, HI):
       result = i
   return result
 
-def audsley_no_migration (core):
+def audsley (core, audsley_rta, side_effect):
   priority_levels = len(core['tasks'])
   verification_tasks = copy.deepcopy(core['tasks'])
   for p_lvl in range(priority_levels):
@@ -197,74 +198,23 @@ def audsley_no_migration (core):
     if lon_dead_HI_i >= 0:
       lon_dead_HI = verification_tasks[lon_dead_HI_i]
       lon_dead_HI['P'] = p_lvl
-      if audsley_rta_no_migration(lon_dead_HI_i, verification_tasks):
+      if audsley_rta(lon_dead_HI_i, verification_tasks, core):
         continue
       lon_dead_HI['P'] = -1
     lon_dead_LO_i = find_lon_dead(verification_tasks, False)
     if lon_dead_LO_i > 0:
       lon_dead_LO = verification_tasks[lon_dead_LO_i]
       lon_dead_LO['P'] = p_lvl
-      if audsley_rta_no_migration(lon_dead_LO_i, verification_tasks):
+      if audsley_rta(lon_dead_LO_i, verification_tasks, core):
         continue
       lon_dead_LO['P'] = -1
     return False
+  if side_effect:
+    core['tasks'] = verification_tasks
   return True
 
-def verify_no_migration (taskset):
-  global CORES_NO_MIGRATION
-  cores = copy.deepcopy(CORES_NO_MIGRATION)
-  for task in taskset:
-    reset_considered(cores)
-    assigned = False
-    count = 0
-    while not assigned and count < 4:
-      count += 1
-      next_core = worst_fit_bin_packing(task, cores)
-      if next_core is not None:
-        cores[next_core]['considered'] = True
-        # Verify Response Time Analysis
-        verification_core = copy.deepcopy(cores[next_core])
-        verification_core['tasks'].append(task)
-        if audsley_no_migration(verification_core):
-          cores[next_core]['tasks'].append(task)
-          cores[next_core]['utilization'] += task['U']
-          assigned = True
-    if not assigned:
-      return False
-  return True
-
-def calcRi (task, hp):
-  start_value = task['C(LO)']
-  if task['HI']:
-    start_value = task['C(HI)']
-  Ri = start_value
-  while True:
-    newRi = start_value
-    for hp_task in hp:
-      multi_c = hp_task['C(LO)']
-      if task['HI'] and hp_task['HI']:
-        multi_c = hp_task['C(HI)']
-      newRi += math.ceil(Ri / hp_task['D']) * multi_c
-    if newRi > task['D']:
-      return None
-    if newRi == Ri:
-      return newRi
-    Ri = newRi
-
-def rta_base (tasks):
-  for task in tasks:
-    hp = findHp(task, tasks)
-    Ri = calcRi(task, hp)
-    if Ri is None:
-      return False
-  return True
-
-def reset_considered (cores):
-  for c in cores:
-    core = cores[c]
-    core['considered'] = False
-
-def verify_base (task, cores):
+def verify_no_migration_task (task, cores):
+  reset_considered(cores)
   assigned = False
   count = 0
   while not assigned and count < 4:
@@ -272,14 +222,27 @@ def verify_base (task, cores):
     next_core = worst_fit_bin_packing(task, cores)
     if next_core is not None:
       cores[next_core]['considered'] = True
-      # Verify Response Time Analysis
       verification_core = copy.deepcopy(cores[next_core])
       verification_core['tasks'].append(task)
-      if audsley_no_migration(verification_core):
+      if audsley(verification_core, audsley_rta_no_migration, False):
         cores[next_core]['tasks'].append(task)
         cores[next_core]['utilization'] += task['U']
         assigned = True
   return assigned
+
+def verify_no_migration (taskset):
+  global CORES_NO_MIGRATION
+  cores = copy.deepcopy(CORES_NO_MIGRATION)
+  for task in taskset:
+    if not verify_no_migration_task(task, cores):
+      return False
+  return True
+
+def reset_considered (cores):
+  for c in cores:
+    core = cores[c]
+    core['considered'] = False
+    core['utilization'] = 0
 
 def calcRiLO_SE (task, hp):
   RiLO = task['C(LO)']
@@ -296,16 +259,6 @@ def calcRiLO_SE (task, hp):
       task['Ri(LO)'] = RiLO
       return newRiLO
     RiLO = newRiLO
-
-def verify_steady (cores):
-  for c in cores:
-    core = cores[c]
-    for task in core['tasks']:
-      hp = findHp(task, core['tasks'])
-      RiLO = calcRiLO_SE(task, hp)
-      if RiLO is None:
-        return False
-  return True
 
 def findCHp (task, core, tasks):
   result = []
@@ -414,12 +367,28 @@ def calcRiMIX (core, cores):
         return False
   return True
 
+def audsleyRiMIX (i, tasks, core):
+  task = tasks[i]
+  if not task['migrating']:
+    chp = findCHp(task, core, tasks)
+    chpMIG = findCHpMIG(task, core, tasks)
+    if riMIXStep(task, chp, chpMIG) is None:
+      return False
+  return True
+
 def calcRiLO_1 (core, cores):
   for task in cores[core]['tasks']:
     #chp = findCHp(task, core, cores[core]['tasks'])
     chp = findHp(task, cores[core]['tasks'])
     if riLO_1Step(task, chp, core) is None:
       return False
+  return True
+
+def audsleyRiLO_1 (i, tasks, core):
+  task = tasks[i]
+  chp = findHp(task, tasks)
+  if riLO_1Step(task, chp, core) is None:
+    return False
   return True
 
 def calcRiHI_1 (core, cores):
@@ -429,6 +398,15 @@ def calcRiHI_1 (core, cores):
       chpLO = findCHpLO(task, core, cores[core]['tasks'])
       if riHI_1Step(task, chpHI, chpLO, core) is None:
         return False
+  return True
+
+def audsleyRiHI_1 (i, tasks, core):
+  task = tasks[i]
+  if task['HI']:
+    chpHI = findCHpHI(task, core, tasks)
+    chpLO = findCHpLO(task, core, tasks)
+    if riHI_1Step(task, chpHI, chpLO, core) is None:
+      return False
   return True
 
 def verify_mode_changes (cores):
@@ -452,46 +430,84 @@ def verify_mode_changes (cores):
           if migration_core not in migration_cores:
             migration_cores.append(migration_core)
       # RTA for new crit core
-      if not calcRiMIX(crit_core, verification_cores):
+      if not audsley(verification_cores[crit_core], audsleyRiMIX, False):
         return False
       # Remove migrated tasks from crit_core
       verification_cores[crit_core]['tasks'] = new_crit_core_tasks
       # RTA for migration cores
       for m_c in migration_cores:
-        if not calcRiLO_1(m_c, verification_cores):
+        if not audsley(verification_cores[m_c], audsleyRiLO_1, True):
           return False
       crit_count += 1
     for core in verification_cores:
       # Verify 3rd crit core
       if core not in mode_change:
-        if not calcRiHI_1(core, verification_cores):
+        if not audsley(verification_cores[core], audsleyRiHI_1, False):
           return False
   return True
 
-def verify_migration (task, cores):
-  task['migrating'] = True
+def audsley_rta_steady (i, tasks, core):
+  task = tasks[i]
+  hp = findHp(i, tasks)
+  RiLO = calcRiLO_SE(task, hp)
+  if RiLO is None:
+    return False
+  #print('TRUE')
+  return True
+
+def sort_tasks_priority (t1, t2):
+  if t1[1]['P'] >= t2[1]['P']:
+    return -1
+  else:
+    return 1
+
+def get_LO_crit_tasks (tasks):
+  result = []
+  for i in range(len(tasks)):
+    task = tasks[i]
+    if not task['HI']:
+      result.append([i, task])
+  result.sort(key=functools.cmp_to_key(sort_tasks_priority))
+  return [r[0] for r in result]
+
+def verify_migration_task (task, cores):
+  #print('verify migration task')
+  reset_considered(cores)
+  #task['migrating'] = True
   assigned = False
   count = 0
   while not assigned and count < 4:
     count += 1
     next_core = worst_fit_bin_packing(task, cores)
     if next_core is not None:
+      #print('>> next core OK')
       cores[next_core]['considered'] = True
-      # Copy objects to avoid side effects
       verification_task = copy.deepcopy(task)
       verification_cores = copy.deepcopy(cores)
-      verification_cores[next_core]['tasks'].append(verification_task)
-      if verify_steady(verification_cores):
-        for migration_group in cores[next_core]['migration']:
-          verification_task['migration_route'] = migration_group
-          # Verify mode changes
-          if verify_mode_changes(verification_cores):
-            assigned = True
-            task['migration_route'] = migration_group
-            cores[next_core]['tasks'].append(task)
-            cores[next_core]['utilization'] += task['U']
-            break
-  reset_considered(cores)
+      verification_core = verification_cores[next_core]
+      verification_core['tasks'].append(verification_task)
+      if audsley(verification_core, audsley_rta_steady, True):
+        #print('>> steady OK')
+        # Tasks verified for steady mode, with priority and RiLO, C(LO), etc.
+        LO_crit_tasks = get_LO_crit_tasks(verification_core['tasks'])
+        #print('>> LO crit tasks', LO_crit_tasks, len(verification_core['tasks']))
+        assigned_migrating = False
+        for LO_crit_task_i in LO_crit_tasks:
+          verification_cores_mode = copy.deepcopy(verification_cores)
+          verification_task_mode = verification_cores_mode[next_core]['tasks'][LO_crit_task_i]
+          for migration_group in cores[next_core]['migration']:
+            verification_task_mode['migration_route'] = migration_group
+            # Verify mode changes
+            if verify_mode_changes(verification_cores_mode):
+              assigned_migrating = True
+              assigned = True
+              migrating_task = cores[next_core]['tasks'][LO_crit_task_i]
+              migrating_task['migration_route'] = migration_group
+              cores[next_core]['tasks'].append(task)
+              cores[next_core]['utilization'] += task['U']
+              break
+        if assigned_migrating:
+          break
   if not assigned:
     return False
   return True
@@ -500,8 +516,12 @@ def verify_model_1 (taskset):
   global CORES_MODEL_1
   cores = copy.deepcopy(CORES_MODEL_1)
   for task in taskset:
-    if not verify_base(task, cores):
-      if task['HI'] or not verify_migration(task, cores):
+    #print('##################')
+    # Attempt assigning with no migration
+    if not verify_no_migration_task(task, cores):
+      #print('No migration FALSE, HI', task['HI'])
+      # Otherwise attempt migration
+      if task['HI'] or not verify_migration_task(task, cores):
         return False
   return True
 
