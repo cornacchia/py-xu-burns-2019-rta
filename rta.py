@@ -242,7 +242,6 @@ def reset_considered (cores):
   for c in cores:
     core = cores[c]
     core['considered'] = False
-    core['utilization'] = 0
 
 def calcRiLO_SE (task, hp):
   RiLO = task['C(LO)']
