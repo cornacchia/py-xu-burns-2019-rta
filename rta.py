@@ -59,6 +59,100 @@ CORES_MODEL_1 = {
     }
   }
 
+CORES_MODEL_2 = {
+    'c1': {
+      'tasks': [],
+      'considered': False,
+      'utilization': 0,
+      'migration': [
+        ['c2', 'c3'],
+        ['c3', 'c2']
+      ]
+    },
+    'c2': {
+      'tasks': [],
+      'considered': False,
+      'utilization': 0,
+      'migration': [
+        ['c3', 'c4'],
+        ['c4', 'c3']
+      ]
+    },
+    'c3': {
+      'tasks': [],
+      'considered': False,
+      'utilization': 0,
+      'migration': [
+        ['c4', 'c1'],
+        ['c1', 'c4']
+      ]
+    },
+    'c4': {
+      'tasks': [],
+      'considered': False,
+      'utilization': 0,
+      'migration': [
+        ['c1', 'c2'],
+        ['c2', 'c1']
+      ]
+    }
+  }
+
+CORES_MODEL_3 = {
+    'c1': {
+      'tasks': [],
+      'considered': False,
+      'utilization': 0,
+      'migration': [
+        ['c2', 'c3'],
+        ['c2', 'c4'],
+        ['c3', 'c2'],
+        ['c3', 'c4'],
+        ['c4', 'c2'],
+        ['c4', 'c3']
+      ]
+    },
+    'c2': {
+      'tasks': [],
+      'considered': False,
+      'utilization': 0,
+      'migration': [
+        ['c3', 'c4'],
+        ['c3', 'c1'],
+        ['c1', 'c3'],
+        ['c1', 'c4'],
+        ['c4', 'c3'],
+        ['c4', 'c1']
+      ]
+    },
+    'c3': {
+      'tasks': [],
+      'considered': False,
+      'utilization': 0,
+      'migration': [
+        ['c4', 'c1'],
+        ['c4', 'c2'],
+        ['c1', 'c2'],
+        ['c1', 'c4'],
+        ['c2', 'c1'],
+        ['c2', 'c4']
+      ]
+    },
+    'c4': {
+      'tasks': [],
+      'considered': False,
+      'utilization': 0,
+      'migration': [
+        ['c1', 'c2'],
+        ['c1', 'c3'],
+        ['c2', 'c3'],
+        ['c2', 'c1'],
+        ['c3', 'c2'],
+        ['c3', 'c1']
+      ]
+    }
+  }
+
 def worst_fit_bin_packing (task, cores):
   min_utilization = 1
   result = None
@@ -533,7 +627,23 @@ def verify_model_1 (taskset):
   return True
 
 def verify_model_2 (taskset):
-  pass
+  global CORES_MODEL_2
+  cores = copy.deepcopy(CORES_MODEL_2)
+  for task in taskset:
+    # Attempt assigning with no migration
+    if not verify_no_migration_task(task, cores):
+      # Otherwise attempt migration
+      if task['HI'] or not verify_migration_task(task, cores):
+        return False
+  return True
 
-def verify_model_4 (taskset):
-  pass
+def verify_model_3 (taskset):
+  global CORES_MODEL_3
+  cores = copy.deepcopy(CORES_MODEL_3)
+  for task in taskset:
+    # Attempt assigning with no migration
+    if not verify_no_migration_task(task, cores):
+      # Otherwise attempt migration
+      if task['HI'] or not verify_migration_task(task, cores):
+        return False
+  return True
