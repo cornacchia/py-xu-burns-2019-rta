@@ -208,6 +208,24 @@ def calcRiLO (task, hp):
       return newRiLO
     RiLO = newRiLO
 
+def calcRi (task, hp):
+  start_Ri = task['C(LO)']
+  if task['HI']:
+    start_Ri = task['C(HI)']
+  Ri = start_Ri
+  while True:
+    newRi = start_Ri
+    for hp_task in hp:
+      hp_C = hp_task['C(LO)']
+      if task['HI'] and hp_task['HI']:
+        hp_C = hp_task['C(HI)']
+      newRi += math.ceil(Ri / hp_task['D']) * hp_C
+    if newRi > task['D']:
+      return None
+    if newRi == Ri:
+      return newRi
+    Ri = newRi
+
 def calcRiHI (task, hpHI):
   RiHI = task['C(HI)']
   while True:
@@ -257,7 +275,7 @@ def rta_no_migration (tasks):
         return False
   return True
 
-def audsley_rta_no_migration (i, tasks, core):
+def audsley_rta_no_migration_amc (i, tasks, core):
   task = tasks[i]
   hp = findHp(i, tasks)
   RiLO = calcRiLO(task, hp)
@@ -272,6 +290,14 @@ def audsley_rta_no_migration (i, tasks, core):
     RiHI_star = calcRiHI_star(task, hpHI, hpLO, RiLO)
     if RiHI_star is None:
       return False
+  return True
+
+def audsley_rta_no_migration (i, tasks, core):
+  task = tasks[i]
+  hp = findHp(i, tasks)
+  RiLO = calcRi(task, hp)
+  if RiLO is None:
+    return False
   return True
 
 def find_lon_dead(tasks, HI):
@@ -327,6 +353,23 @@ def verify_no_migration_task (task, cores):
       verification_core = copy.deepcopy(cores[next_core])
       verification_core['tasks'].append(task)
       if audsley(verification_core, audsley_rta_no_migration, False):
+        cores[next_core]['tasks'].append(task)
+        cores[next_core]['utilization'] += task['U']
+        assigned = True
+  return assigned
+
+def verify_no_migration_task_amc (task, cores):
+  reset_considered(cores)
+  assigned = False
+  count = 0
+  while not assigned and count < 4:
+    count += 1
+    next_core = worst_fit_bin_packing(task, cores)
+    if next_core is not None:
+      cores[next_core]['considered'] = True
+      verification_core = copy.deepcopy(cores[next_core])
+      verification_core['tasks'].append(task)
+      if audsley(verification_core, audsley_rta_no_migration_amc, False):
         cores[next_core]['tasks'].append(task)
         cores[next_core]['utilization'] += task['U']
         assigned = True
