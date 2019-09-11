@@ -85,9 +85,9 @@ def run_second ():
   if MODEL_1:
     data_to_plot.append({'label': 'Model 1', 'data': res_global[1]})
   if MODEL_2:
-    data_to_plot.append({'label': 'Model 1', 'data': res_global[2]})
+    data_to_plot.append({'label': 'Model 2', 'data': res_global[2]})
   if MODEL_3:
-    data_to_plot.append({'label': 'Model 1', 'data': res_global[3]})
+    data_to_plot.append({'label': 'Model 3', 'data': res_global[3]})
   plot_data(
     data_to_plot,
     'Criticality Factor',
@@ -131,9 +131,9 @@ def run_third ():
   if MODEL_1:
     data_to_plot.append({'label': 'Model 1', 'data': res_global[1]})
   if MODEL_2:
-    data_to_plot.append({'label': 'Model 1', 'data': res_global[2]})
+    data_to_plot.append({'label': 'Model 2', 'data': res_global[2]})
   if MODEL_3:
-    data_to_plot.append({'label': 'Model 1', 'data': res_global[3]})
+    data_to_plot.append({'label': 'Model 3', 'data': res_global[3]})
   plot_data(
     data_to_plot,
     'Proportion of HI-crit tasks',
@@ -177,9 +177,9 @@ def run_fourth ():
   if MODEL_1:
     data_to_plot.append({'label': 'Model 1', 'data': res_global[1]})
   if MODEL_2:
-    data_to_plot.append({'label': 'Model 1', 'data': res_global[2]})
+    data_to_plot.append({'label': 'Model 2', 'data': res_global[2]})
   if MODEL_3:
-    data_to_plot.append({'label': 'Model 1', 'data': res_global[3]})
+    data_to_plot.append({'label': 'Model 3', 'data': res_global[3]})
   plot_data(
     data_to_plot,
     'Tasksets size',
