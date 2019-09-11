@@ -64,7 +64,7 @@ def worst_fit_bin_packing (task, cores):
   result = None
   for c in cores:
     core = cores[c]
-    if not core['considered'] and core['utilization'] + task['U'] < 1 and core['utilization'] < min_utilization:
+    if not core['considered'] and core['utilization'] < min_utilization:
       result = c
       min_utilization = core['utilization']
   return result
@@ -190,24 +190,32 @@ def find_lon_dead(tasks, HI):
       result = i
   return result
 
+def reset_priorities (tasks):
+  for task in tasks:
+    task['P'] = -1
+
 def audsley (core, audsley_rta, side_effect):
   priority_levels = len(core['tasks'])
   verification_tasks = copy.deepcopy(core['tasks'])
+  reset_priorities(verification_tasks)
   for p_lvl in range(priority_levels):
     lon_dead_HI_i = find_lon_dead(verification_tasks, True)
     if lon_dead_HI_i >= 0:
       lon_dead_HI = verification_tasks[lon_dead_HI_i]
       lon_dead_HI['P'] = p_lvl
-      if audsley_rta(lon_dead_HI_i, verification_tasks, core):
+      lon_dead_HI_result = audsley_rta(lon_dead_HI_i, verification_tasks, core)
+      if lon_dead_HI_result:
         continue
       lon_dead_HI['P'] = -1
     lon_dead_LO_i = find_lon_dead(verification_tasks, False)
-    if lon_dead_LO_i > 0:
+    if lon_dead_LO_i >= 0:
       lon_dead_LO = verification_tasks[lon_dead_LO_i]
       lon_dead_LO['P'] = p_lvl
-      if audsley_rta(lon_dead_LO_i, verification_tasks, core):
+      lon_dead_LO_result = audsley_rta(lon_dead_LO_i, verification_tasks, core)
+      if lon_dead_LO_result:
         continue
       lon_dead_LO['P'] = -1
+    #print('no candidates', priority_levels, p_lvl, lon_dead_HI_i, lon_dead_LO_i)
     return False
   if side_effect:
     core['tasks'] = verification_tasks
@@ -324,8 +332,10 @@ def riLO_1Step (task, chp, core):
     if newRiLO_1 > task_deadline:
       return None
     if newRiLO_1 == RiLO_1:
-      task['J2'] = task['J'] + (RiLO_1 - task['C(LO)'])
-      task['D2'] = task['D1'] - (RiLO_1 - task['C(LO)'])
+      if ('J' in task):
+        task['J2'] = task['J'] + (RiLO_1 - task['C(LO)'])
+      if ('D1' in task):
+        task['D2'] = task['D1'] - (RiLO_1 - task['C(LO)'])
       task['Ri(LO)'] = RiLO_1
       return RiLO_1
     RiLO_1 = newRiLO_1
@@ -377,7 +387,6 @@ def audsleyRiMIX (i, tasks, core):
 
 def calcRiLO_1 (core, cores):
   for task in cores[core]['tasks']:
-    #chp = findCHp(task, core, cores[core]['tasks'])
     chp = findHp(task, cores[core]['tasks'])
     if riLO_1Step(task, chp, core) is None:
       return False
@@ -385,7 +394,7 @@ def calcRiLO_1 (core, cores):
 
 def audsleyRiLO_1 (i, tasks, core):
   task = tasks[i]
-  chp = findHp(task, tasks)
+  chp = findHp(i, tasks)
   if riLO_1Step(task, chp, core) is None:
     return False
   return True
@@ -430,18 +439,21 @@ def verify_mode_changes (cores):
             migration_cores.append(migration_core)
       # RTA for new crit core
       if not audsley(verification_cores[crit_core], audsleyRiMIX, False):
+        #print('no RiMIX')
         return False
       # Remove migrated tasks from crit_core
       verification_cores[crit_core]['tasks'] = new_crit_core_tasks
       # RTA for migration cores
       for m_c in migration_cores:
         if not audsley(verification_cores[m_c], audsleyRiLO_1, True):
+          #print('no RiLO_1')
           return False
       crit_count += 1
     for core in verification_cores:
       # Verify 3rd crit core
       if core not in mode_change:
         if not audsley(verification_cores[core], audsleyRiHI_1, False):
+          #print('no RiHI_1')
           return False
   return True
 
@@ -451,7 +463,6 @@ def audsley_rta_steady (i, tasks, core):
   RiLO = calcRiLO_SE(task, hp)
   if RiLO is None:
     return False
-  #print('TRUE')
   return True
 
 def sort_tasks_priority (t1, t2):
@@ -470,41 +481,40 @@ def get_LO_crit_tasks (tasks):
   return [r[0] for r in result]
 
 def verify_migration_task (task, cores):
-  #print('verify migration task')
   reset_considered(cores)
-  #task['migrating'] = True
   assigned = False
   count = 0
   while not assigned and count < 4:
     count += 1
     next_core = worst_fit_bin_packing(task, cores)
     if next_core is not None:
-      #print('>> next core OK')
       cores[next_core]['considered'] = True
       verification_task = copy.deepcopy(task)
       verification_cores = copy.deepcopy(cores)
       verification_core = verification_cores[next_core]
       verification_core['tasks'].append(verification_task)
       if audsley(verification_core, audsley_rta_steady, True):
-        #print('>> steady OK')
         # Tasks verified for steady mode, with priority and RiLO, C(LO), etc.
         LO_crit_tasks = get_LO_crit_tasks(verification_core['tasks'])
-        #print('>> LO crit tasks', LO_crit_tasks, len(verification_core['tasks']))
         assigned_migrating = False
         for LO_crit_task_i in LO_crit_tasks:
           verification_cores_mode = copy.deepcopy(verification_cores)
           verification_task_mode = verification_cores_mode[next_core]['tasks'][LO_crit_task_i]
           for migration_group in cores[next_core]['migration']:
+            verification_task_mode['migrating'] = True
             verification_task_mode['migration_route'] = migration_group
             # Verify mode changes
             if verify_mode_changes(verification_cores_mode):
               assigned_migrating = True
               assigned = True
-              migrating_task = cores[next_core]['tasks'][LO_crit_task_i]
-              migrating_task['migration_route'] = migration_group
               cores[next_core]['tasks'].append(task)
               cores[next_core]['utilization'] += task['U']
+              migrating_task = cores[next_core]['tasks'][LO_crit_task_i]
+              migrating_task['migrating'] = True
+              migrating_task['migration_route'] = migration_group
               break
+          if assigned_migrating:
+            break
         if assigned_migrating:
           break
   if not assigned:
@@ -515,10 +525,8 @@ def verify_model_1 (taskset):
   global CORES_MODEL_1
   cores = copy.deepcopy(CORES_MODEL_1)
   for task in taskset:
-    #print('##################')
     # Attempt assigning with no migration
     if not verify_no_migration_task(task, cores):
-      #print('No migration FALSE, HI', task['HI'])
       # Otherwise attempt migration
       if task['HI'] or not verify_migration_task(task, cores):
         return False
