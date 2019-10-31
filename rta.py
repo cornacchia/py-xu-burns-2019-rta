@@ -153,6 +153,13 @@ CORES_MODEL_3 = {
     }
   }
 
+def first_fit_bin_packing (task, cores):
+  for c in cores:
+    core = cores[c]
+    if not core['considered'] and core['utilization'] + task['U'] <= 1:
+      return c
+  return None
+
 def worst_fit_bin_packing (task, cores):
   min_utilization = 1
   result = None
@@ -324,7 +331,7 @@ def verify_no_migration_task (task, cores):
   count = 0
   while not assigned and count < 4:
     count += 1
-    next_core = worst_fit_bin_packing(task, cores)
+    next_core = first_fit_bin_packing(task, cores)
     if next_core is not None:
       cores[next_core]['considered'] = True
       verification_core = copy.deepcopy(cores[next_core])
@@ -341,7 +348,7 @@ def verify_no_migration_task_amc (task, cores):
   count = 0
   while not assigned and count < 4:
     count += 1
-    next_core = worst_fit_bin_packing(task, cores)
+    next_core = first_fit_bin_packing(task, cores)
     if next_core is not None:
       cores[next_core]['considered'] = True
       verification_core = copy.deepcopy(cores[next_core])
@@ -597,7 +604,7 @@ def get_LO_crit_tasks (tasks, core):
   result = []
   for i in range(len(tasks)):
     task = tasks[i]
-    if not task['HI']:
+    if not task['HI'] and not task['migrating']:
       result.append([i, task])
   if core == 'c1':
     result.sort(key=functools.cmp_to_key(sort_tasks_priority_c1))
@@ -625,7 +632,7 @@ def verify_migration_task (task, cores):
   count = 0
   while not assigned and count < 4:
     count += 1
-    next_core = worst_fit_bin_packing(task, cores)
+    next_core = first_fit_bin_packing(task, cores)
     if next_core is not None:
       cores[next_core]['considered'] = True
       verification_task = copy.deepcopy(task)
