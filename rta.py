@@ -65,8 +65,8 @@ CORES_MODEL_2 = {
       'considered': False,
       'utilization': 0,
       'migration': [
-        ['c2', 'c3'],
-        ['c3', 'c2']
+        ['c2', 'c4'],
+        ['c3', 'c4']
       ]
     },
     'c2': {
@@ -74,8 +74,8 @@ CORES_MODEL_2 = {
       'considered': False,
       'utilization': 0,
       'migration': [
-        ['c3', 'c4'],
-        ['c4', 'c3']
+        ['c4', 'c3'],
+        ['c1', 'c3']
       ]
     },
     'c3': {
@@ -83,8 +83,8 @@ CORES_MODEL_2 = {
       'considered': False,
       'utilization': 0,
       'migration': [
-        ['c4', 'c1'],
-        ['c1', 'c4']
+        ['c1', 'c2'],
+        ['c4', 'c2']
       ]
     },
     'c4': {
@@ -92,7 +92,7 @@ CORES_MODEL_2 = {
       'considered': False,
       'utilization': 0,
       'migration': [
-        ['c1', 'c2'],
+        ['c3', 'c1'],
         ['c2', 'c1']
       ]
     }
