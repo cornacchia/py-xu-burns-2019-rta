@@ -10,7 +10,7 @@ def log_uniform (n, Tmin = 10, Tmax = 1000, Tg = 10):
     T.append(math.floor(math.exp(ri) / Tg) * Tg)
   return T
 
-def UUnifast_discard_step (n, maxU):
+def UUnifast_discard_step_1 (n, maxU):
   R = numpy.random.uniform(0, 1, n)
   S = [0] * (n + 1)
   S[n] = maxU
@@ -20,6 +20,19 @@ def UUnifast_discard_step (n, maxU):
   for i in range(1, n + 1):
     U.append(S[i] - S[i - 1])
   # Discard step
+  for i in range(0, n):
+    if (U[i] > 1):
+      return False, None
+  return True, U
+
+def UUnifast_discard_step (n, maxU):
+  sumU = maxU
+  U = []
+  for i in range (1, n):
+    nextSumU = sumU * (numpy.random.uniform() ** (1 / (n - i)))
+    U.append(sumU - nextSumU)
+    sumU = nextSumU
+  U.append(sumU)
   for i in range(0, n):
     if (U[i] > 1):
       return False, None
@@ -69,10 +82,6 @@ def generate_taskset (n, p, f, maxU):
       new_task['C(LO)'] = U[i] * T[i]
       LO_tot -= 1
     taskset.append(new_task)
-  # Assign RM priority
-  #taskset.sort(key=functools.cmp_to_key(sort_tasks_period))
-  #for i in range(len(taskset) - 1, -1, -1):
-  #  taskset[i]['P'] = i
   # Sort by criticality and utilization
   taskset.sort(key=functools.cmp_to_key(sort_tasks_criticality))
   return taskset
