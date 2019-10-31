@@ -46,7 +46,7 @@ def run_first ():
     data_to_plot,
     'Utilization',
     'Schedulable Tasksets',
-    '')
+    'result/result_1.png')
 
 def run_second ():
   global NO_MIG, MODEL_1, MODEL_2, MODEL_3
@@ -92,7 +92,7 @@ def run_second ():
     data_to_plot,
     'Criticality Factor',
     'Weighted Schedulability',
-    '')
+    'result/result_2.png')
 
 def run_third ():
   global NO_MIG, MODEL_1, MODEL_2, MODEL_3
@@ -138,7 +138,7 @@ def run_third ():
     data_to_plot,
     'Proportion of HI-crit tasks',
     'Weighted Schedulability',
-    '')
+    'result/result_3.png')
 
 def run_fourth ():
   global NO_MIG, MODEL_1, MODEL_2, MODEL_3
@@ -184,4 +184,9 @@ def run_fourth ():
     data_to_plot,
     'Tasksets size',
     'Weighted Schedulability',
-    '')
+    'result/result_4.png')
+
+run_first()
+run_second()
+run_third()
+run_fourth()
