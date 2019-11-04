@@ -10,21 +10,6 @@ def log_uniform (n, Tmin = 10, Tmax = 1000, Tg = 10):
     T.append(math.floor(math.exp(ri) / Tg) * Tg)
   return T
 
-def UUnifast_discard_step_1 (n, maxU):
-  R = numpy.random.uniform(0, 1, n)
-  S = [0] * (n + 1)
-  S[n] = maxU
-  U = []
-  for i in range(n, 1, -1):
-    S[i - 1] = S[i] * (R[i - 1] ** (1 / (i - 1)))
-  for i in range(1, n + 1):
-    U.append(S[i] - S[i - 1])
-  # Discard step
-  for i in range(0, n):
-    if (U[i] > 1):
-      return False, None
-  return True, U
-
 def UUnifast_discard_step (n, maxU):
   sumU = maxU
   U = []
