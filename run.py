@@ -1,192 +1,134 @@
 from taskset import generate_taskset, calc_total_utilization
 from rta import verify_no_migration, verify_model_1, verify_model_2, verify_model_3
 from plot import plot_data
+import config
 import copy
 
-NO_MIG = True
-MODEL_1 = True
-MODEL_2 = True
-MODEL_3 = True
+def create_chart (results, x_label, y_label, filename):
+  data_to_plot = []
+  if config.CHECK_NO_MIGRATION:
+    data_to_plot.append({'label': 'No Migration', 'data': results[0]})
+  if config.CHECK_MODEL_1:
+    data_to_plot.append({'label': 'Model 1', 'data': results[1]})
+  if config.CHECK_MODEL_2:
+    data_to_plot.append({'label': 'Model 2', 'data': results[2]})
+  if config.CHECK_MODEL_3:
+    data_to_plot.append({'label': 'Model 3', 'data': results[3]})
+  plot_data(
+    data_to_plot,
+    x_label,
+    y_label,
+    config.RESULTS_DIR + filename)
 
-def run_first ():
-  global NO_MIG, MODEL_1, MODEL_2, MODEL_3
+
+# First test: check percentage of schedulable tasksets with different utilizations
+def run_first_test ():
   res_global = [[], [], [], []]
+  # Starting utilization value
   U = 3.2
+  # Utilization step
   step = 0.028
+  # Number of tests to run for single utilization step
   number_of_tests = 100
   while U <= 4.6:
-    print(U)
     res_local = [[U, 0], [U, 0], [U, 0], [U, 0]]
-    for n_task in range(number_of_tests):
+    for _ in range(number_of_tests):
       new_taskset = generate_taskset(24, 0.5, 2, U)
-      if NO_MIG and verify_no_migration(copy.deepcopy(new_taskset)):
+      if config.CHECK_NO_MIGRATION and verify_no_migration(copy.deepcopy(new_taskset)):
         for i in range(4):
           res_local[i][1] += 1
       else:
-        if MODEL_1 and verify_model_1(copy.deepcopy(new_taskset)):
+        if config.CHECK_MODEL_1 and verify_model_1(copy.deepcopy(new_taskset)):
           res_local[1][1] += 1
-        if MODEL_2 and verify_model_2(copy.deepcopy(new_taskset)):
+        if config.CHECK_MODEL_2 and verify_model_2(copy.deepcopy(new_taskset)):
           res_local[2][1] += 1
-        if MODEL_3 and verify_model_3(copy.deepcopy(new_taskset)):
+        if config.CHECK_MODEL_3 and verify_model_3(copy.deepcopy(new_taskset)):
           res_local[3][1] += 1
     for i in range(4):
       res_local[i][1] = res_local[i][1] * 100 / number_of_tests
       res_global[i].append(res_local[i])
     U += step
-  data_to_plot = []
-  if NO_MIG:
-    data_to_plot.append({'label': 'No Migration', 'data': res_global[0]})
-  if MODEL_1:
-    data_to_plot.append({'label': 'Model 1', 'data': res_global[1]})
-  if MODEL_2:
-    data_to_plot.append({'label': 'Model 2', 'data': res_global[2]})
-  if MODEL_3:
-    data_to_plot.append({'label': 'Model 3', 'data': res_global[3]})
-  plot_data(
-    data_to_plot,
-    'Utilization',
-    'Schedulable Tasksets',
-    'result/result_1.png')
+  create_chart(res_global, 'Utilization', 'Schedulable Tasksets', 'result_1.png')
 
-def run_second ():
-  global NO_MIG, MODEL_1, MODEL_2, MODEL_3
+# This test is similar to "run_first_test" but keeps track of total utilization vs. total schedulable utilization
+# n -> Taskset size
+# p -> Proportion of HI-crit tasks
+# f -> Criticality factor
+def check_utilization_total_schedulability (n, p, f):
+  # Keep track of the sum of all tasksets' utilizations
+  total_utilizations = 0
+  # Keep track of the sum of schedulable tasksets' utilizations (for every model)
+  total_schedulable_utilizations = [0, 0, 0, 0]
+  # Starting utilization value
+  U = 3.2
+  # Utilization step
+  step = 0.028
+  # Number of tests to run for single utilization step
+  number_of_tests = 100
+  while U <= 4.6:
+    for _ in range(number_of_tests):
+      new_taskset = generate_taskset(n, p, f, U)
+      taskset_utilization = calc_total_utilization(new_taskset)
+      total_utilizations += taskset_utilization
+      if config.CHECK_NO_MIGRATION and verify_no_migration(copy.deepcopy(new_taskset)):
+        for i in range(4):
+          total_schedulable_utilizations[i] += taskset_utilization
+      else:
+        if config.CHECK_MODEL_1 and verify_model_1(copy.deepcopy(new_taskset)):
+          total_schedulable_utilizations[1] += taskset_utilization
+        if config.CHECK_MODEL_2 and verify_model_2(copy.deepcopy(new_taskset)):
+          total_schedulable_utilizations[2] += taskset_utilization
+        if config.CHECK_MODEL_3 and verify_model_3(copy.deepcopy(new_taskset)):
+          total_schedulable_utilizations[3] += taskset_utilization
+    U += step
+  return total_utilizations, total_schedulable_utilizations
+
+def run_second_test ():
   res_global = [[], [], [], []]
+  # Starting Criticality Factor value
   f = 1.25
   f_step = 0.25
   while f <= 3.75:
-    print(f)
-    total_utilizations = 0
-    total_schedulable_utilizations = [0, 0, 0, 0]
-    U = 3.2
-    step = 0.028
-    number_of_tests = 100
-    while U <= 4.6:
-      for n_task in range(number_of_tests):
-        new_taskset = generate_taskset(24, 0.5, f, U)
-        taskset_utilization = calc_total_utilization(new_taskset)
-        total_utilizations += taskset_utilization
-        if NO_MIG and verify_no_migration(copy.deepcopy(new_taskset)):
-          for i in range(4):
-            total_schedulable_utilizations[i] += taskset_utilization
-        else:
-          if MODEL_1 and verify_model_1(copy.deepcopy(new_taskset)):
-            total_schedulable_utilizations[1] += taskset_utilization
-          if MODEL_2 and verify_model_2(copy.deepcopy(new_taskset)):
-            total_schedulable_utilizations[2] += taskset_utilization
-          if MODEL_3 and verify_model_3(copy.deepcopy(new_taskset)):
-            total_schedulable_utilizations[3] += taskset_utilization
-      U += step
+    total_utilizations, total_schedulable_utilizations = check_utilization_total_schedulability(24, 0.5, f)
     for i in range(4):
       res_global[i].append([f, total_schedulable_utilizations[i] / total_utilizations])
     f += f_step
-  data_to_plot = []
-  if NO_MIG:
-    data_to_plot.append({'label': 'No Migration', 'data': res_global[0]})
-  if MODEL_1:
-    data_to_plot.append({'label': 'Model 1', 'data': res_global[1]})
-  if MODEL_2:
-    data_to_plot.append({'label': 'Model 2', 'data': res_global[2]})
-  if MODEL_3:
-    data_to_plot.append({'label': 'Model 3', 'data': res_global[3]})
-  plot_data(
-    data_to_plot,
-    'Criticality Factor',
-    'Weighted Schedulability',
-    'result/result_2.png')
+  create_chart(res_global, 'Criticality Factor', 'Weighted Schedulability', 'result_2.png')
 
-def run_third ():
-  global NO_MIG, MODEL_1, MODEL_2, MODEL_3
+def run_third_test ():
   res_global = [[], [], [], []]
+  # Starting Proportion of HI-crit tasks value
   p = 0.1
   p_step = 0.2
   while p <= 0.9:
-    print(p)
-    total_utilizations = 0
-    total_schedulable_utilizations = [0, 0, 0, 0]
-    U = 3.2
-    step = 0.028
-    number_of_tests = 100
-    while U <= 4.6:
-      for n_task in range(number_of_tests):
-        new_taskset = generate_taskset(24, p, 2, U)
-        taskset_utilization = calc_total_utilization(new_taskset)
-        total_utilizations += taskset_utilization
-        if NO_MIG and verify_no_migration(copy.deepcopy(new_taskset)):
-          for i in range(4):
-            total_schedulable_utilizations[i] += taskset_utilization
-        else:
-          if MODEL_1 and verify_model_1(copy.deepcopy(new_taskset)):
-            total_schedulable_utilizations[1] += taskset_utilization
-          if MODEL_2 and verify_model_2(copy.deepcopy(new_taskset)):
-            total_schedulable_utilizations[2] += taskset_utilization
-          if MODEL_3 and verify_model_3(copy.deepcopy(new_taskset)):
-            total_schedulable_utilizations[3] += taskset_utilization
-      U += step
+    total_utilizations, total_schedulable_utilizations = check_utilization_total_schedulability(24, p, 2)
     for i in range(4):
       res_global[i].append([p, total_schedulable_utilizations[i] / total_utilizations])
     p += p_step
-  data_to_plot = []
-  if NO_MIG:
-    data_to_plot.append({'label': 'No Migration', 'data': res_global[0]})
-  if MODEL_1:
-    data_to_plot.append({'label': 'Model 1', 'data': res_global[1]})
-  if MODEL_2:
-    data_to_plot.append({'label': 'Model 2', 'data': res_global[2]})
-  if MODEL_3:
-    data_to_plot.append({'label': 'Model 3', 'data': res_global[3]})
-  plot_data(
-    data_to_plot,
-    'Proportion of HI-crit tasks',
-    'Weighted Schedulability',
-    'result/result_3.png')
+  create_chart(res_global, 'Proportion of HI-crit tasks', 'Weighted Schedulability', 'result_3.png')
 
-def run_fourth ():
-  global NO_MIG, MODEL_1, MODEL_2, MODEL_3
+def run_fourth_test ():
   res_global = [[], [], [], []]
+  # Starting Tasksets' size value
   n = 32
   n_step = 16
   while n <= 144:
-    print(n)
-    total_utilizations = 0
-    total_schedulable_utilizations = [0, 0, 0, 0]
-    U = 3.2
-    step = 0.028
-    number_of_tests = 100
-    while U <= 4.6:
-      for n_task in range(number_of_tests):
-        new_taskset = generate_taskset(n, 0.5, 2, U)
-        taskset_utilization = calc_total_utilization(new_taskset)
-        total_utilizations += taskset_utilization
-        if NO_MIG and verify_no_migration(copy.deepcopy(new_taskset)):
-          for i in range(4):
-            total_schedulable_utilizations[i] += taskset_utilization
-        else:
-          if MODEL_1 and verify_model_1(copy.deepcopy(new_taskset)):
-            total_schedulable_utilizations[1] += taskset_utilization
-          if MODEL_2 and verify_model_2(copy.deepcopy(new_taskset)):
-            total_schedulable_utilizations[2] += taskset_utilization
-          if MODEL_3 and verify_model_3(copy.deepcopy(new_taskset)):
-            total_schedulable_utilizations[3] += taskset_utilization
-      U += step
+    total_utilizations, total_schedulable_utilizations = check_utilization_total_schedulability(n, 0.5, 2)
     for i in range(4):
       res_global[i].append([n, total_schedulable_utilizations[i] / total_utilizations])
     n += n_step
-  data_to_plot = []
-  if NO_MIG:
-    data_to_plot.append({'label': 'No Migration', 'data': res_global[0]})
-  if MODEL_1:
-    data_to_plot.append({'label': 'Model 1', 'data': res_global[1]})
-  if MODEL_2:
-    data_to_plot.append({'label': 'Model 2', 'data': res_global[2]})
-  if MODEL_3:
-    data_to_plot.append({'label': 'Model 3', 'data': res_global[3]})
-  plot_data(
-    data_to_plot,
-    'Tasksets size',
-    'Weighted Schedulability',
-    'result/result_4.png')
+  create_chart(res_global, 'Taskset size', 'Weighted Schedulability', 'result_4')
 
-run_first()
-run_second()
-run_third()
-run_fourth()
+if config.RUN_FIRST_TEST:
+  print('>>> Running first test')
+  run_first_test()
+if config.RUN_SECOND_TEST:
+  print('>>> Running second test')
+  run_second_test()
+if config.RUN_THIRD_TEST:
+  print('>>> Running third test')
+  run_third_test()
+if config.RUN_FOURTH_TEST:
+  print('>>> Running fourth test')
+  run_fourth_test()
+print('>>> Done')
