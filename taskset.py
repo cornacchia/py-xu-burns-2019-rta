@@ -3,6 +3,8 @@ import math
 import random
 import functools
 
+# Default values taken from "Techniques For The Synthesis Of Multiprocessor Tasksets" by Emberson, et. al
+# cfr. https://www.researchgate.net/publication/241677949_Techniques_For_The_Synthesis_Of_Multiprocessor_Tasksets
 def log_uniform (n, Tmin = 10, Tmax = 1000, Tg = 10):
   R = numpy.random.uniform(math.log(Tmin), math.log(Tmax + Tg), n)
   T = []
@@ -18,6 +20,7 @@ def UUnifast_discard_step (n, maxU):
     U.append(sumU - nextSumU)
     sumU = nextSumU
   U.append(sumU)
+  # "Discard" step, if one of the utilizations is > 1 drop all the results
   for i in range(0, n):
     if (U[i] > 1):
       return False, None
@@ -29,6 +32,7 @@ def UUnifast_discard (n, maxU):
     flag, U = UUnifast_discard_step(n, maxU)
   return U
 
+# Sort by criticality first, then utilization
 def sort_tasks_criticality (t1, t2):
   if t1['HI'] and not t2['HI']:
     return -1
@@ -40,11 +44,10 @@ def sort_tasks_criticality (t1, t2):
     else:
       return 1
 
-def sort_tasks_period (t1, t2):
-  if t1['D'] >= t2['D']:
-    return -1
-  return 1
-
+# n -> Taskset size
+# p -> Percentage of HI-crit tasks
+# f -> Criticality factor
+# maxU -> Total taskset utilization
 def generate_taskset (n, p, f, maxU):
   HI_tot = n * p
   LO_tot = n - HI_tot
@@ -52,7 +55,27 @@ def generate_taskset (n, p, f, maxU):
   T = log_uniform(n)
   taskset = []
   for i in range(n):
-    new_task = {'HI': False, 'C(HI)': -1, 'C(LO)': -1, 'U': U[i], 'D': T[i], 'J': 0, 'migrating': False, 'migration_route': [], 'P': {'c1': -1, 'c2': -1, 'c3': -1, 'c4': -1}}
+    new_task = {
+      # Is this task HI-crit?
+      'HI': False,
+      # HI-crit WCET
+      'C(HI)': -1,
+      # LO-crit WCET
+      'C(LO)': -1,
+      # Nominal utilization
+      'U': U[i],
+      # Deadline (== Period)
+      'D': T[i],
+      # Jitter
+      'J': 0,
+      # Is this task migratable?
+      'migrating': False,
+      # Which migration route does this task follow?
+      'migration_route': [],
+      # Priorities for each core
+      'P': {'c1': -1, 'c2': -1, 'c3': -1, 'c4': -1}
+      }
+    # Randomly set tasks as HI-crit (but always respect the percentage of HI-crit tasks "p")
     HI_flag = random.choice([True, False])
     if HI_flag and HI_tot <= 0:
       HI_flag = False

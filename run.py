@@ -52,7 +52,7 @@ def run_first_test ():
 
 # This test is similar to "run_first_test" but keeps track of total utilization vs. total schedulable utilization
 # n -> Taskset size
-# p -> Proportion of HI-crit tasks
+# p -> Percentage of HI-crit tasks
 # f -> Criticality factor
 def check_utilization_total_schedulability (n, p, f):
   # Keep track of the sum of all tasksets' utilizations
