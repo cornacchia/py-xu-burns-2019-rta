@@ -3,6 +3,7 @@ import math
 import copy
 import functools
 import config
+import utils
 
 # Reset "considered" flag on cores
 # This is invoked when a new task is selected for scheduling
@@ -357,30 +358,6 @@ def audsley_rta_steady (i, tasks, core, core_id):
     return False
   return True
 
-def sort_tasks_priority_c1 (t1, t2):
-  if t1[1]['P']['c1'] >= t2[1]['P']['c1']:
-    return -1
-  else:
-    return 1
-
-def sort_tasks_priority_c2 (t1, t2):
-  if t1[1]['P']['c2'] >= t2[1]['P']['c2']:
-    return -1
-  else:
-    return 1
-
-def sort_tasks_priority_c3 (t1, t2):
-  if t1[1]['P']['c3'] >= t2[1]['P']['c3']:
-    return -1
-  else:
-    return 1
-
-def sort_tasks_priority_c4 (t1, t2):
-  if t1[1]['P']['c4'] >= t2[1]['P']['c4']:
-    return -1
-  else:
-    return 1
-
 def get_LO_crit_tasks (tasks, core):
   result = []
   for i in range(len(tasks)):
@@ -388,13 +365,13 @@ def get_LO_crit_tasks (tasks, core):
     if not task['HI'] and not task['migrating']:
       result.append([i, task])
   if core == 'c1':
-    result.sort(key=functools.cmp_to_key(sort_tasks_priority_c1))
+    result.sort(key=functools.cmp_to_key(utils.sort_tasks_priority_c1))
   elif core == 'c2':
-    result.sort(key=functools.cmp_to_key(sort_tasks_priority_c2))
+    result.sort(key=functools.cmp_to_key(utils.sort_tasks_priority_c2))
   elif core == 'c3':
-    result.sort(key=functools.cmp_to_key(sort_tasks_priority_c3))
+    result.sort(key=functools.cmp_to_key(utils.sort_tasks_priority_c3))
   elif core == 'c4':
-    result.sort(key=functools.cmp_to_key(sort_tasks_priority_c4))
+    result.sort(key=functools.cmp_to_key(utils.sort_tasks_priority_c4))
   return [r[0] for r in result]
 
 def backup_priorities (tasks):
