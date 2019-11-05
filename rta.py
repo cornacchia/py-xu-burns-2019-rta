@@ -1,157 +1,7 @@
 import math
 import copy
 import functools
-
-CORES_MODE_CHANGES = [
-  ['c1', 'c2'],
-  ['c1', 'c3'],
-  ['c1', 'c4'],
-  ['c2', 'c3'],
-  ['c2', 'c4'],
-  ['c2', 'c1'],
-  ['c3', 'c1'],
-  ['c3', 'c2'],
-  ['c3', 'c4'],
-  ['c4', 'c1'],
-  ['c4', 'c2'],
-  ['c4', 'c3']
-]
-
-CORES_NO_MIGRATION = {
-  'c1': {'tasks': [], 'considered': False, 'utilization': 0},
-  'c2': {'tasks': [], 'considered': False, 'utilization': 0},
-  'c3': {'tasks': [], 'considered': False, 'utilization': 0},
-  'c4': {'tasks': [], 'considered': False, 'utilization': 0}
-}
-
-CORES_MODEL_1 = {
-    'c1': {
-      'tasks': [],
-      'considered': False,
-      'utilization': 0,
-      'migration': [
-        ['c2', 'c3']
-      ]
-    },
-    'c2': {
-      'tasks': [],
-      'considered': False,
-      'utilization': 0,
-      'migration': [
-        ['c3', 'c4']
-      ]
-    },
-    'c3': {
-      'tasks': [],
-      'considered': False,
-      'utilization': 0,
-      'migration': [
-        ['c4', 'c1']
-      ]
-    },
-    'c4': {
-      'tasks': [],
-      'considered': False,
-      'utilization': 0,
-      'migration': [
-        ['c1', 'c2']
-      ]
-    }
-  }
-
-CORES_MODEL_2 = {
-    'c1': {
-      'tasks': [],
-      'considered': False,
-      'utilization': 0,
-      'migration': [
-        ['c2', 'c4'],
-        ['c3', 'c4']
-      ]
-    },
-    'c2': {
-      'tasks': [],
-      'considered': False,
-      'utilization': 0,
-      'migration': [
-        ['c4', 'c3'],
-        ['c1', 'c3']
-      ]
-    },
-    'c3': {
-      'tasks': [],
-      'considered': False,
-      'utilization': 0,
-      'migration': [
-        ['c1', 'c2'],
-        ['c4', 'c2']
-      ]
-    },
-    'c4': {
-      'tasks': [],
-      'considered': False,
-      'utilization': 0,
-      'migration': [
-        ['c3', 'c1'],
-        ['c2', 'c1']
-      ]
-    }
-  }
-
-CORES_MODEL_3 = {
-    'c1': {
-      'tasks': [],
-      'considered': False,
-      'utilization': 0,
-      'migration': [
-        ['c2', 'c3'],
-        ['c2', 'c4'],
-        ['c3', 'c2'],
-        ['c3', 'c4'],
-        ['c4', 'c2'],
-        ['c4', 'c3']
-      ]
-    },
-    'c2': {
-      'tasks': [],
-      'considered': False,
-      'utilization': 0,
-      'migration': [
-        ['c3', 'c4'],
-        ['c3', 'c1'],
-        ['c1', 'c3'],
-        ['c1', 'c4'],
-        ['c4', 'c3'],
-        ['c4', 'c1']
-      ]
-    },
-    'c3': {
-      'tasks': [],
-      'considered': False,
-      'utilization': 0,
-      'migration': [
-        ['c4', 'c1'],
-        ['c4', 'c2'],
-        ['c1', 'c2'],
-        ['c1', 'c4'],
-        ['c2', 'c1'],
-        ['c2', 'c4']
-      ]
-    },
-    'c4': {
-      'tasks': [],
-      'considered': False,
-      'utilization': 0,
-      'migration': [
-        ['c1', 'c2'],
-        ['c1', 'c3'],
-        ['c2', 'c3'],
-        ['c2', 'c1'],
-        ['c3', 'c2'],
-        ['c3', 'c1']
-      ]
-    }
-  }
+import config
 
 def first_fit_bin_packing (task, cores):
   for c in cores:
@@ -360,8 +210,7 @@ def verify_no_migration_task_amc (task, cores):
   return assigned
 
 def verify_no_migration (taskset):
-  global CORES_NO_MIGRATION
-  cores = copy.deepcopy(CORES_NO_MIGRATION)
+  cores = copy.deepcopy(config.CORES_NO_MIGRATION)
   for task in taskset:
     if not verify_no_migration_task(task, cores):
       return False
@@ -526,8 +375,7 @@ def verifyRiHI_1 (core, core_id):
   return True
 
 def verify_mode_changes (cores):
-  global CORES_MODE_CHANGES
-  for mode_change in CORES_MODE_CHANGES:
+  for mode_change in config.CORES_MODE_CHANGES:
     crit_count = 0
     verification_cores = copy.deepcopy(cores)
     for crit_core in mode_change:
@@ -671,8 +519,7 @@ def verify_migration_task (task, cores):
   return True
 
 def verify_model_1 (taskset):
-  global CORES_MODEL_1
-  cores = copy.deepcopy(CORES_MODEL_1)
+  cores = copy.deepcopy(config.CORES_MODEL_1)
   for task in taskset:
     # Attempt assigning with no migration
     if not verify_no_migration_task(task, cores):
@@ -682,8 +529,7 @@ def verify_model_1 (taskset):
   return True
 
 def verify_model_2 (taskset):
-  global CORES_MODEL_2
-  cores = copy.deepcopy(CORES_MODEL_2)
+  cores = copy.deepcopy(config.CORES_MODEL_2)
   for task in taskset:
     # Attempt assigning with no migration
     if not verify_no_migration_task(task, cores):
@@ -693,8 +539,7 @@ def verify_model_2 (taskset):
   return True
 
 def verify_model_3 (taskset):
-  global CORES_MODEL_3
-  cores = copy.deepcopy(CORES_MODEL_3)
+  cores = copy.deepcopy(config.CORES_MODEL_3)
   for task in taskset:
     # Attempt assigning with no migration
     if not verify_no_migration_task(task, cores):
