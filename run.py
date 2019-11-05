@@ -1,3 +1,4 @@
+from progress.bar import Bar
 from taskset import generate_taskset, calc_total_utilization
 from rta import verify_no_migration, verify_model_1, verify_model_2, verify_model_3
 from plot import plot_data
@@ -24,13 +25,15 @@ def create_chart (results, x_label, y_label, filename):
 # First test: check percentage of schedulable tasksets with different utilizations
 def run_first_test ():
   res_global = [[], [], [], []]
-  # Starting utilization value
+  # Starting and final utilization values
   U = 3.2
+  finish_U = 4.6
   # Utilization step
   step = 0.028
   # Number of tests to run for single utilization step
   number_of_tests = 100
-  while U <= 4.6:
+  first_test_bar = Bar('First test', max=((finish_U - U)/step) + 2)
+  while U <= finish_U:
     res_local = [[U, 0], [U, 0], [U, 0], [U, 0]]
     for _ in range(number_of_tests):
       new_taskset = generate_taskset(24, 0.5, 2, U)
@@ -48,6 +51,8 @@ def run_first_test ():
       res_local[i][1] = res_local[i][1] * 100 / number_of_tests
       res_global[i].append(res_local[i])
     U += step
+    first_test_bar.next()
+  first_test_bar.finish()
   create_chart(res_global, 'Utilization', 'Schedulable Tasksets', 'result_1.png')
 
 # This test is similar to "run_first_test" but keeps track of total utilization vs. total schedulable utilization
@@ -85,38 +90,50 @@ def check_utilization_total_schedulability (n, p, f):
 
 def run_second_test ():
   res_global = [[], [], [], []]
-  # Starting Criticality Factor value
+  # Starting and final Criticality Factor values
   f = 1.25
+  finish_f = 3.75
   f_step = 0.25
-  while f <= 3.75:
+  second_test_bar = Bar('Second test', max=((finish_f - f)/f_step) + 2)
+  while f <= finish_f:
     total_utilizations, total_schedulable_utilizations = check_utilization_total_schedulability(24, 0.5, f)
     for i in range(4):
       res_global[i].append([f, total_schedulable_utilizations[i] / total_utilizations])
     f += f_step
+    second_test_bar.next()
+  second_test_bar.finish()
   create_chart(res_global, 'Criticality Factor', 'Weighted Schedulability', 'result_2.png')
 
 def run_third_test ():
   res_global = [[], [], [], []]
-  # Starting Proportion of HI-crit tasks value
+  # Starting and final Proportion of HI-crit tasks values
   p = 0.1
+  finish_p = 0.9
   p_step = 0.2
-  while p <= 0.9:
+  third_test_bar = Bar('Third test', max=((finish_p - p)/p_step) + 2)
+  while p <= finish_p:
     total_utilizations, total_schedulable_utilizations = check_utilization_total_schedulability(24, p, 2)
     for i in range(4):
       res_global[i].append([p, total_schedulable_utilizations[i] / total_utilizations])
     p += p_step
+    third_test_bar.next()
+  third_test_bar.finish()
   create_chart(res_global, 'Proportion of HI-crit tasks', 'Weighted Schedulability', 'result_3.png')
 
 def run_fourth_test ():
   res_global = [[], [], [], []]
-  # Starting Tasksets' size value
+  # Starting and final Tasksets' size values
   n = 32
+  final_n = 144
   n_step = 16
-  while n <= 144:
+  fourth_test_bar = Bar('Fourth test', max=((final_n - n)/n_step) + 2)
+  while n <= final_n:
     total_utilizations, total_schedulable_utilizations = check_utilization_total_schedulability(n, 0.5, 2)
     for i in range(4):
       res_global[i].append([n, total_schedulable_utilizations[i] / total_utilizations])
     n += n_step
+    fourth_test_bar.next()
+  fourth_test_bar.finish()
   create_chart(res_global, 'Taskset size', 'Weighted Schedulability', 'result_4')
 
 if config.RUN_FIRST_TEST:
