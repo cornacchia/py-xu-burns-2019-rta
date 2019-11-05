@@ -1,8 +1,18 @@
+import sys
 import math
 import copy
 import functools
 import config
 
+# Reset "considered" flag on cores
+# This is invoked when a new task is selected for scheduling
+def reset_considered (cores):
+  for c in cores:
+    core = cores[c]
+    core['considered'] = False
+
+# Implements the first fit bin-packing algorithm
+# To use it set config.FIRST_FIT_BP to True
 def first_fit_bin_packing (task, cores):
   for c in cores:
     core = cores[c]
@@ -10,6 +20,8 @@ def first_fit_bin_packing (task, cores):
       return c
   return None
 
+# Implements the first fit bin-packing algorithm
+# To use it set config.WORST_FIT_BP to True
 def worst_fit_bin_packing (task, cores):
   min_utilization = 1
   result = None
@@ -20,6 +32,17 @@ def worst_fit_bin_packing (task, cores):
       min_utilization = core['utilization']
   return result
 
+# Get the next core to check according to the algorithm specified in the config
+def get_next_core (task, cores):
+  if config.FIRST_FIT_BP:
+    return first_fit_bin_packing(task, cores)
+  elif config.WORST_FIT_BP:
+    return worst_fit_bin_packing(task, cores)
+  else:
+    print('!!! ERROR: No bin-packing algorithm selected !!!')
+    sys.exit()
+
+# Find tasks with priority greater than Ti's (= tasks[i]) priority
 def findHp (i, tasks, core):
   result = []
   task = tasks[i]
@@ -31,40 +54,7 @@ def findHp (i, tasks, core):
       result.append(other_task)
   return result
 
-def findHpHI (i, tasks, core):
-  result = []
-  task = tasks[i]
-  for j in range(len(tasks)):
-    if j == i:
-      continue
-    other_task = tasks[j]
-    if other_task['HI'] and (other_task['P'][core] < 0 or other_task['P'][core] > task['P'][core]):
-      result.append(other_task)
-  return result
-
-def findHpLO (i, tasks, core):
-  result = []
-  task = tasks[i]
-  for j in range(len(tasks)):
-    if j == i:
-      continue
-    other_task = tasks[j]
-    if not other_task['HI'] and (other_task['P'][core] < 0 or other_task['P'][core] > task['P'][core]):
-      result.append(other_task)
-  return result
-
-def calcRiLO (task, hp):
-  RiLO = task['C(LO)']
-  while True:
-    newRiLO = task['C(LO)']
-    for hp_task in hp:
-      newRiLO += math.ceil(RiLO / hp_task['D']) * hp_task['C(LO)']
-    if newRiLO > task['D']:
-      return None
-    if newRiLO == RiLO:
-      return newRiLO
-    RiLO = newRiLO
-
+# Vestal's algorithm
 def calcRi (task, hp):
   start_Ri = task['C(LO)']
   if task['HI']:
@@ -83,84 +73,53 @@ def calcRi (task, hp):
       return newRi
     Ri = newRi
 
-def calcRiHI (task, hpHI):
-  RiHI = task['C(HI)']
-  while True:
-    newRiHI = task['C(HI)']
-    for hp_task in hpHI:
-      newRiHI += math.ceil(RiHI / hp_task['D']) * hp_task['C(HI)']
-    if newRiHI > task['D']:
-      return None
-    if newRiHI == RiHI:
-      return newRiHI
-    RiHI = newRiHI
-
-def calcRiHI_star (task, hpHI, hpLO, RiLO):
-  RiHI_star = task['C(HI)']
-  while True:
-    newRiHI_star = task['C(HI)']
-    for hp_task in hpHI:
-      newRiHI_star += math.ceil(RiHI_star / hp_task['D']) * hp_task['C(HI)']
-    for hp_task in hpLO:
-      newRiHI_star += math.ceil(RiLO / hp_task['D']) * hp_task['C(LO)']
-    if newRiHI_star > task['D']:
-      return None
-    if newRiHI_star == RiHI_star:
-      return newRiHI_star
-    RiHI_star = newRiHI_star
-
-def audsley_rta_no_migration_amc (i, tasks, core, core_id):
-  task = tasks[i]
-  hp = findHp(i, tasks, core_id)
-  RiLO = calcRiLO(task, hp)
-  if RiLO is None:
-    return False
-  if task['HI']:
-    hpHI = findHpHI(i, tasks, core_id)
-    hpLO = findHpLO(i, tasks, core_id)
-    RiHI = calcRiHI(task, hpHI)
-    if RiHI is None:
-      return False
-    RiHI_star = calcRiHI_star(task, hpHI, hpLO, RiLO)
-    if RiHI_star is None:
-      return False
-  return True
-
 def audsley_rta_no_migration (i, tasks, core, core_id):
   task = tasks[i]
   hp = findHp(i, tasks, core_id)
-  RiLO = calcRi(task, hp)
-  if RiLO is None:
+  Ri = calcRi(task, hp)
+  if Ri is None:
     return False
   return True
 
+# Find which task, in this core, has the longest deadline
+# core -> core on which we are checking
+# tasks -> core's tasks
+# HI -> should we check HI-crit tasks or LO-crit tasks?
 def find_lon_dead(core, tasks, HI):
   max_deadline = -1
   result = -1
   for i in range(len(tasks)):
     task = tasks[i]
+    # Ensure that the task doesn't already have a priority for this core
     if task['P'][core] < 0 and task['HI'] == HI and task['D'] > max_deadline:
       max_deadline = task['D']
       result = i
   return result
 
-def reset_priorities (tasks):
-  for task in tasks:
-    for core in ['c1', 'c2', 'c3', 'c4']:
-      task['P'][core] = -1
-
+# Implements Audsley's OPA
+# core -> core object
+# core_id -> core identifier
+# audsley_rta -> RTA algorithm to use (no migration, Ri(LO), Ri(HI), etc.)
+# side_effect -> Should the priorities assigned during this step be saved?
 def audsley (core, core_id, audsley_rta, side_effect):
+  # One priority for each task
   priority_levels = len(core['tasks'])
+  # Clone tasks to avoid side effects
   verification_tasks = copy.deepcopy(core['tasks'])
   for p_lvl in range(priority_levels):
+    # Find the HI-crit task with greatest deadline (and no priority for this core)
     lon_dead_HI_i = find_lon_dead(core_id, verification_tasks, True)
     if lon_dead_HI_i >= 0:
       lon_dead_HI = verification_tasks[lon_dead_HI_i]
       lon_dead_HI['P'][core_id] = p_lvl
+      # Check if system schedulable with p_lvl priority assinged to to this task
       lon_dead_HI_result = audsley_rta(lon_dead_HI_i, verification_tasks, core, core_id)
+      # If the result is True skip the next check and leave the priority assigned to the task
       if lon_dead_HI_result:
         continue
+      # Otherwise reset the priority and check LO-crit tasks
       lon_dead_HI['P'][core_id] = -1
+    # Find the LO-crit task with greatest deadline (and no priority for this core)
     lon_dead_LO_i = find_lon_dead(core_id, verification_tasks, False)
     if lon_dead_LO_i >= 0:
       lon_dead_LO = verification_tasks[lon_dead_LO_i]
@@ -169,57 +128,31 @@ def audsley (core, core_id, audsley_rta, side_effect):
       if lon_dead_LO_result:
         continue
       lon_dead_LO['P'][core_id] = -1
-    #print('no candidates', core_id, priority_levels, p_lvl, lon_dead_HI_i, lon_dead_LO_i, verification_tasks)
     return False
+  # In some cases we want to remember the priorities assigned at this point
   if side_effect:
     core['tasks'] = verification_tasks
   return True
 
 def verify_no_migration_task (task, cores):
+  # Cleanup "considered" flag on cores to start fresh for the new task
   reset_considered(cores)
   assigned = False
   count = 0
   while not assigned and count < 4:
     count += 1
-    next_core = first_fit_bin_packing(task, cores)
+    next_core = get_next_core(task, cores)
     if next_core is not None:
       cores[next_core]['considered'] = True
+      # Always clone cores to avoid side effects
       verification_core = copy.deepcopy(cores[next_core])
       verification_core['tasks'].append(task)
+      # Check core schedulability with Audsley's OPA
       if audsley(verification_core, next_core, audsley_rta_no_migration, False):
         cores[next_core]['tasks'].append(task)
         cores[next_core]['utilization'] += task['U']
         assigned = True
   return assigned
-
-def verify_no_migration_task_amc (task, cores):
-  reset_considered(cores)
-  assigned = False
-  count = 0
-  while not assigned and count < 4:
-    count += 1
-    next_core = first_fit_bin_packing(task, cores)
-    if next_core is not None:
-      cores[next_core]['considered'] = True
-      verification_core = copy.deepcopy(cores[next_core])
-      verification_core['tasks'].append(task)
-      if audsley(verification_core, next_core, audsley_rta_no_migration_amc, False):
-        cores[next_core]['tasks'].append(task)
-        cores[next_core]['utilization'] += task['U']
-        assigned = True
-  return assigned
-
-def verify_no_migration (taskset):
-  cores = copy.deepcopy(config.CORES_NO_MIGRATION)
-  for task in taskset:
-    if not verify_no_migration_task(task, cores):
-      return False
-  return True
-
-def reset_considered (cores):
-  for c in cores:
-    core = cores[c]
-    core['considered'] = False
 
 def calcRiLO_SE (task, hp):
   RiLO = task['C(LO)']
@@ -480,7 +413,7 @@ def verify_migration_task (task, cores):
   count = 0
   while not assigned and count < 4:
     count += 1
-    next_core = first_fit_bin_packing(task, cores)
+    next_core = get_next_core(task, cores)
     if next_core is not None:
       cores[next_core]['considered'] = True
       verification_task = copy.deepcopy(task)
@@ -495,7 +428,6 @@ def verify_migration_task (task, cores):
         for LO_crit_task_i in LO_crit_tasks:
           verification_cores_mode = copy.deepcopy(verification_cores)
           assign_backup_priorities(verification_cores_mode[next_core], priorities_backup)
-          #reset_priorities(verification_cores_mode[next_core]['tasks'])
           verification_task_mode = verification_cores_mode[next_core]['tasks'][LO_crit_task_i]
           for migration_group in cores[next_core]['migration']:
             verification_task_mode['migrating'] = True
@@ -516,6 +448,19 @@ def verify_migration_task (task, cores):
           break
   if not assigned:
     return False
+  return True
+
+# Point of entry for all the tests
+# 1. No migration model: Vestal's algorithm
+# 2. Model 1: 1 migration route for every core
+# 3. Model 2: 2 migration routes for every core
+# 4. Model 3: 6 migration routes for every core
+
+def verify_no_migration (taskset):
+  cores = copy.deepcopy(config.CORES_NO_MIGRATION)
+  for task in taskset:
+    if not verify_no_migration_task(task, cores):
+      return False
   return True
 
 def verify_model_1 (taskset):

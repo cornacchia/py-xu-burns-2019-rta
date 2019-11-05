@@ -10,6 +10,10 @@ RUN_SECOND_TEST = True
 RUN_THIRD_TEST = True
 RUN_FOURTH_TEST = True
 
+# Select bin-packing algorithm to use
+FIRST_FIT_BP = False
+WORST_FIT_BP = True
+
 # Results will be saved in RESULTS_DIR
 RESULTS_DIR = '/tmp/'
 
