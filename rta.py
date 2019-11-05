@@ -155,7 +155,8 @@ def verify_no_migration_task (task, cores):
         assigned = True
   return assigned
 
-def calcRiLO_SE (task, hp):
+# Calculate Ri(LO) (cfr. Equation 7 in Xu, Burns 2019)
+def calcRiLO (task, hp):
   RiLO = task['C(LO)']
   while True:
     newRiLO = task['C(LO)']
@@ -164,7 +165,7 @@ def calcRiLO_SE (task, hp):
     if newRiLO > task['D']:
       return None
     if newRiLO == RiLO:
-      # Update Jitter and Deadline
+      # Update Jitter and Deadline for next steps
       task['J'] = task['J'] + (RiLO - task['C(LO)'])
       task['D1'] = task['D'] - (RiLO - task['C(LO)'])
       task['Ri(LO)'] = RiLO
@@ -219,6 +220,22 @@ def riMIXStep (task, chp, chpMIG):
       return RiMIX
     RiMIX = newRiMIX
 
+def audsleyRiMIX (i, tasks, core, core_id):
+  task = tasks[i]
+  if not task['migrating']:
+    chp = findCHp(task, core, tasks, core_id)
+    chpMIG = findCHpMIG(task, core, tasks)
+    if riMIXStep(task, chp, chpMIG) is None:
+      return False
+  return True
+
+# Calculate Ri(MIX) (cfr. Equation 9 in Xu, Burns 2019)
+def verify_RiMIX (core, core_id):
+  for i in range(len(core['tasks'])):
+    if not audsleyRiMIX(i, core['tasks'], core_id, core_id):
+      return False
+  return True
+
 def riLO_1Step (task, chp, core):
   RiLO_1 = task['C(LO)']
   task_deadline = task['D']
@@ -243,6 +260,14 @@ def riLO_1Step (task, chp, core):
       task['Ri(LO)'] = RiLO_1
       return RiLO_1
     RiLO_1 = newRiLO_1
+
+# Calculate Ri(LO)' with Audsley's OPA (cfr. Equation 9 in Xu, Burns 2019)
+def audsleyRiLO_1 (i, tasks, core, core_id):
+  task = tasks[i]
+  chp = findHp(i, tasks, core_id)
+  if riLO_1Step(task, chp, core) is None:
+    return False
+  return True
 
 def riHI_1Step (task, chpHI, chpLO, core):
   RiHI_1 = task['C(HI)']
@@ -271,28 +296,6 @@ def riHI_1Step (task, chpHI, chpLO, core):
       return RiHI_1
     RiHI_1 = newRiHI_1
 
-def audsleyRiMIX (i, tasks, core, core_id):
-  task = tasks[i]
-  if not task['migrating']:
-    chp = findCHp(task, core, tasks, core_id)
-    chpMIG = findCHpMIG(task, core, tasks)
-    if riMIXStep(task, chp, chpMIG) is None:
-      return False
-  return True
-
-def verify_RiMIX (core, core_id):
-  for i in range(len(core['tasks'])):
-    if not audsleyRiMIX(i, core['tasks'], core_id, core_id):
-      return False
-  return True
-
-def audsleyRiLO_1 (i, tasks, core, core_id):
-  task = tasks[i]
-  chp = findHp(i, tasks, core_id)
-  if riLO_1Step(task, chp, core) is None:
-    return False
-  return True
-
 def audsleyRiHI_1 (i, tasks, core, core_id):
   task = tasks[i]
   if task['HI']:
@@ -302,6 +305,7 @@ def audsleyRiHI_1 (i, tasks, core, core_id):
       return False
   return True
 
+# Calculate Ri(HI)' (cfr. Equation 11 in Xu, Burns 2019)
 def verifyRiHI_1 (core, core_id):
   for i in range(len(core['tasks'])):
     if not audsleyRiHI_1(i, core['tasks'], core_id, core_id):
@@ -327,37 +331,39 @@ def verify_mode_changes (cores):
           verification_cores[migration_core]['tasks'].append(task)
           if migration_core not in migration_cores:
             migration_cores.append(migration_core)
-      # RTA for new crit core
+      # RTA for new HI-crit core
+      # This uses the priorities assigned during the steady mode, no Audsley here
       if not verify_RiMIX(verification_cores[crit_core], crit_core):
-      #if not audsley(verification_cores[crit_core], crit_core, audsleyRiMIX, False):
-        #print('no RiMIX')
         return False
-      # Remove migrated tasks from crit_core
+      # Remove migrated tasks from HI-crit core
+      # This is done to test future interferences
       verification_cores[crit_core]['tasks'] = new_crit_core_tasks
-      # RTA for migration cores
+      # RTA for cores which receive migrated tasks
       for m_c in migration_cores:
         if not audsley(verification_cores[m_c], m_c, audsleyRiLO_1, True):
-          #print('no RiLO1')
           return False
       crit_count += 1
     for core in verification_cores:
       # Verify 3rd crit core
       if core not in mode_change:
+        # RTA for new HI-crit core after the boundary number is reached
+        # This uses the priorities assigned during the preceding steps, no Audsley here
         if not verifyRiHI_1(verification_cores[crit_core], crit_core):
-        #if not audsley(verification_cores[core], core, audsleyRiHI_1, False):
-          #print('no RiHI1')
           return False
-  #print('TRUE')
   return True
 
+# This function applies Audsley's OPA to the steady mode
 def audsley_rta_steady (i, tasks, core, core_id):
   task = tasks[i]
+  # Get LO-crit and HI-crit higher priority tasks
   hp = findHp(i, tasks, core_id)
-  RiLO = calcRiLO_SE(task, hp)
+  RiLO = calcRiLO(task, hp)
   if RiLO is None:
     return False
   return True
 
+# This function returns the LO-crit tasks of a core
+# sorted by priority
 def get_LO_crit_tasks (tasks, core):
   result = []
   for i in range(len(tasks)):
@@ -385,6 +391,7 @@ def assign_backup_priorities(core, bkp_priorities):
     core['tasks'][i]['P'] = bkp_priorities[i]
 
 def verify_migration_task (task, cores):
+  # Cleanup "considered" flag on cores to start fresh for the new task
   reset_considered(cores)
   assigned = False
   count = 0
@@ -393,19 +400,27 @@ def verify_migration_task (task, cores):
     next_core = get_next_core(task, cores)
     if next_core is not None:
       cores[next_core]['considered'] = True
+      # Always clone cores and tasks to avoid side effects
       verification_task = copy.deepcopy(task)
       verification_cores = copy.deepcopy(cores)
+      # Get clone of the core to check for schedulability
       verification_core = verification_cores[next_core]
+      # Simulate assigning the task to the core
       verification_core['tasks'].append(verification_task)
+      # Check steady mode
       if audsley(verification_core, next_core, audsley_rta_steady, True):
-        # Tasks verified for steady mode, with priority and RiLO, C(LO), etc.
+        # Tasks verified for steady mode, with priority and Ri(LO), C(LO), etc.
+        # Get the LO-crit tasks, sorted by priority
         LO_crit_tasks = get_LO_crit_tasks(verification_core['tasks'], next_core)
         assigned_migrating = False
         priorities_backup = backup_priorities(verification_core['tasks'])
+        # Note: this is done in descending priority order (cfr. Semi2 model)
         for LO_crit_task_i in LO_crit_tasks:
           verification_cores_mode = copy.deepcopy(verification_cores)
           assign_backup_priorities(verification_cores_mode[next_core], priorities_backup)
           verification_task_mode = verification_cores_mode[next_core]['tasks'][LO_crit_task_i]
+          # Try to assign the task to each migration group until a schedulable configuration
+          # is found or all routes are tested
           for migration_group in cores[next_core]['migration']:
             verification_task_mode['migrating'] = True
             verification_task_mode['migration_route'] = migration_group
