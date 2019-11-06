@@ -13,3 +13,4 @@ def plot_data (results, x, y, output):
   plt.xticks()
   plt.legend()
   plt.savefig(output)
+  print('Result saved: ' + output)
