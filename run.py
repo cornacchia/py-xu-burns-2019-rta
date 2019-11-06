@@ -32,7 +32,7 @@ def run_first_test ():
   step = 0.028
   # Number of tests to run for single utilization step
   number_of_tests = 100
-  first_test_bar = Bar('First test', max=((finish_U - U)/step) + 2)
+  first_test_bar = Bar('First test', max=51)
   while U <= finish_U:
     res_local = [[U, 0], [U, 0], [U, 0], [U, 0]]
     for _ in range(number_of_tests):
@@ -94,7 +94,7 @@ def run_second_test ():
   f = 1.25
   finish_f = 3.75
   f_step = 0.25
-  second_test_bar = Bar('Second test', max=((finish_f - f)/f_step) + 2)
+  second_test_bar = Bar('Second test', max=11)
   while f <= finish_f:
     total_utilizations, total_schedulable_utilizations = check_utilization_total_schedulability(24, 0.5, f)
     for i in range(4):
@@ -110,7 +110,7 @@ def run_third_test ():
   p = 0.1
   finish_p = 0.9
   p_step = 0.2
-  third_test_bar = Bar('Third test', max=((finish_p - p)/p_step) + 2)
+  third_test_bar = Bar('Third test', max=5)
   while p <= finish_p:
     total_utilizations, total_schedulable_utilizations = check_utilization_total_schedulability(24, p, 2)
     for i in range(4):
@@ -126,7 +126,7 @@ def run_fourth_test ():
   n = 32
   final_n = 144
   n_step = 16
-  fourth_test_bar = Bar('Fourth test', max=((final_n - n)/n_step) + 2)
+  fourth_test_bar = Bar('Fourth test', max=8)
   while n <= final_n:
     total_utilizations, total_schedulable_utilizations = check_utilization_total_schedulability(n, 0.5, 2)
     for i in range(4):
