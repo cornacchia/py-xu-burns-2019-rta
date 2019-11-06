@@ -4,6 +4,7 @@ This script attempts to reproduce the results described in the 2019 paper by H. 
 The script runs on [python3](https://www.python.org/download/releases/3.0/) and needs the following additional packages:
 * [numpy](https://numpy.org/) -> `pip3 install numpy`
 * [matplotlib](https://matplotlib.org/) -> `pip3 install matplotlib`
+* [progress](https://pypi.org/project/progress/) -> `pip3 install progress`
 
 ## Usage
 To launch the script with the default configuration:
