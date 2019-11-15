@@ -109,7 +109,7 @@ def run_third_test ():
   # Starting and final Proportion of HI-crit tasks values
   p = 0.1
   finish_p = 0.9
-  p_step = 0.2
+  p_step = 0.1
   third_test_bar = Bar('Third test', max=5)
   while p <= finish_p:
     total_utilizations, total_schedulable_utilizations = check_utilization_total_schedulability(24, p, 2)
