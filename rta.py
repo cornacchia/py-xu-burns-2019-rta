@@ -44,14 +44,14 @@ def get_next_core (task, cores):
     sys.exit()
 
 # Find tasks with priority greater than Ti's (= tasks[i]) priority
-def findHp (i, tasks, core):
+def findHp (i, tasks, core_id):
   result = []
   task = tasks[i]
   for j in range(len(tasks)):
     if j == i:
       continue
     other_task = tasks[j]
-    if other_task['P'][core] < 0 or other_task['P'][core] > task['P'][core]:
+    if other_task['P'][core_id] < 0 or other_task['P'][core_id] > task['P'][core_id]:
       result.append(other_task)
   return result
 
@@ -71,10 +71,14 @@ def calcRi (task, hp):
     if newRi > task['D']:
       return None
     if newRi == Ri:
+      # Update Jitter and Deadline for next steps
+      task['J'] = task['J'] + (Ri - task['C(LO)'])
+      task['D1'] = task['D'] - (Ri - task['C(LO)'])
+      task['Ri(LO)'] = Ri
       return newRi
     Ri = newRi
 
-def audsley_rta_no_migration (i, tasks, core, core_id):
+def audsley_rta_no_migration (i, tasks, core_id):
   task = tasks[i]
   hp = findHp(i, tasks, core_id)
   Ri = calcRi(task, hp)
@@ -83,19 +87,23 @@ def audsley_rta_no_migration (i, tasks, core, core_id):
   return True
 
 # Find which task, in this core, has the longest deadline
-# core -> core on which we are checking
+# core_id -> id of core on which we are checking
 # tasks -> core's tasks
 # HI -> should we check HI-crit tasks or LO-crit tasks?
-def find_lon_dead(core, tasks, HI):
+def find_lon_dead(core_id, tasks, HI):
   max_deadline = -1
   result = -1
   for i in range(len(tasks)):
     task = tasks[i]
     # Ensure that the task doesn't already have a priority for this core
-    if task['P'][core] < 0 and task['HI'] == HI and task['D'] > max_deadline:
+    if task['P'][core_id] < 0 and task['HI'] == HI and task['D'] > max_deadline:
       max_deadline = task['D']
       result = i
   return result
+
+def clear_priorities (tasks, core_id):
+  for task in tasks:
+    task['P'][core_id] = -1
 
 # Implements Audsley's OPA
 # core -> core object
@@ -107,6 +115,7 @@ def audsley (core, core_id, audsley_rta, side_effect):
   priority_levels = len(core['tasks'])
   # Clone tasks to avoid side effects
   verification_tasks = copy.deepcopy(core['tasks'])
+  clear_priorities(verification_tasks, core_id)
   for p_lvl in range(priority_levels):
     # Find the HI-crit task with greatest deadline (and no priority for this core)
     lon_dead_HI_i = find_lon_dead(core_id, verification_tasks, True)
@@ -114,7 +123,7 @@ def audsley (core, core_id, audsley_rta, side_effect):
       lon_dead_HI = verification_tasks[lon_dead_HI_i]
       lon_dead_HI['P'][core_id] = p_lvl
       # Check if system schedulable with p_lvl priority assinged to to this task
-      lon_dead_HI_result = audsley_rta(lon_dead_HI_i, verification_tasks, core, core_id)
+      lon_dead_HI_result = audsley_rta(lon_dead_HI_i, verification_tasks, core_id)
       # If the result is True skip the next check and leave the priority assigned to the task
       if lon_dead_HI_result:
         continue
@@ -125,7 +134,7 @@ def audsley (core, core_id, audsley_rta, side_effect):
     if lon_dead_LO_i >= 0:
       lon_dead_LO = verification_tasks[lon_dead_LO_i]
       lon_dead_LO['P'][core_id] = p_lvl
-      lon_dead_LO_result = audsley_rta(lon_dead_LO_i, verification_tasks, core, core_id)
+      lon_dead_LO_result = audsley_rta(lon_dead_LO_i, verification_tasks, core_id)
       if lon_dead_LO_result:
         continue
       lon_dead_LO['P'][core_id] = -1
@@ -140,6 +149,7 @@ def verify_no_migration_task (task, cores):
   reset_considered(cores)
   assigned = False
   count = 0
+  next_core = -1
   while not assigned and count < 4:
     count += 1
     next_core = get_next_core(task, cores)
@@ -149,11 +159,11 @@ def verify_no_migration_task (task, cores):
       verification_core = copy.deepcopy(cores[next_core])
       verification_core['tasks'].append(task)
       # Check core schedulability with Audsley's OPA
-      if audsley(verification_core, next_core, audsley_rta_no_migration, False):
-        cores[next_core]['tasks'].append(task)
+      if audsley(verification_core, next_core, audsley_rta_no_migration, True):
+        cores[next_core]['tasks'] = verification_core['tasks']
         cores[next_core]['utilization'] += task['U']
         assigned = True
-  return assigned
+    return assigned
 
 # Calculate Ri(LO) (cfr. Equation 7 in Xu, Burns 2019)
 def calcRiLO (task, hp):
@@ -172,31 +182,31 @@ def calcRiLO (task, hp):
       return newRiLO
     RiLO = newRiLO
 
-def findCHp (task, core, tasks, core_id):
+def findCHp (task, tasks, core_id):
   result = []
   for other_task in tasks:
     if not other_task['migrating'] and (other_task['P'][core_id] > task['P'][core_id]):
       result.append(other_task)
   return result
 
-def findCHpHI (task, core, tasks, core_id):
+def findCHpHI (task, tasks, core_id):
   result = []
   for other_task in tasks:
     if other_task['HI'] and (other_task['P'][core_id] > task['P'][core_id]):
       result.append(other_task)
   return result
 
-def findCHpLO (task, core, tasks, core_id):
+def findCHpLO (task, tasks, core_id):
   result = []
   for other_task in tasks:
     if not other_task['HI'] and (other_task['P'][core_id] > task['P'][core_id]):
       result.append(other_task)
   return result
 
-def findCHpMIG (task, core, tasks):
+def findCHpMIG (task, tasks, core_id):
   result = []
   for other_task in tasks:
-    if (other_task['migrating'] and core not in other_task['migration_route']) and (other_task['P'][core] > task['P'][core]):
+    if (other_task['migrating'] and core_id not in other_task['migration_route']) and (other_task['P'][core_id] > task['P'][core_id]):
       result.append(other_task)
   return result
 
@@ -220,11 +230,11 @@ def riMIXStep (task, chp, chpMIG):
       return RiMIX
     RiMIX = newRiMIX
 
-def audsleyRiMIX (i, tasks, core, core_id):
+def audsleyRiMIX (i, tasks, core_id):
   task = tasks[i]
   if not task['migrating']:
-    chp = findCHp(task, core, tasks, core_id)
-    chpMIG = findCHpMIG(task, core, tasks)
+    chp = findCHp(task, tasks, core_id)
+    chpMIG = findCHpMIG(task, tasks, core_id)
     if riMIXStep(task, chp, chpMIG) is None:
       return False
   return True
@@ -232,21 +242,21 @@ def audsleyRiMIX (i, tasks, core, core_id):
 # Calculate Ri(MIX) (cfr. Equation 9 in Xu, Burns 2019)
 def verify_RiMIX (core, core_id):
   for i in range(len(core['tasks'])):
-    if not audsleyRiMIX(i, core['tasks'], core_id, core_id):
+    if not audsleyRiMIX(i, core['tasks'], core_id):
       return False
   return True
 
-def riLO_1Step (task, chp, core):
+def riLO_1Step (task, chp, core_id):
   RiLO_1 = task['C(LO)']
   task_deadline = task['D']
-  if (task['migrating'] and core in task['migration_route']):
+  if (task['migrating'] and core_id in task['migration_route']):
     task_deadline = task['D1']
   while True:
     newRiLO_1 = task['C(LO)']
     for chp_task in chp:
       chp_jitter = 0
       chp_deadline = chp_task['D']
-      if (chp_task['migrating'] and core in chp_task['migration_route']):
+      if (chp_task['migrating'] and core_id in chp_task['migration_route']):
         chp_jitter = chp_task['J']
         chp_deadline = chp_task['D1']
       newRiLO_1 += math.ceil((RiLO_1 + chp_jitter) / chp_deadline) * chp_task['C(LO)']
@@ -262,19 +272,19 @@ def riLO_1Step (task, chp, core):
     RiLO_1 = newRiLO_1
 
 # Calculate Ri(LO)' with Audsley's OPA (cfr. Equation 9 in Xu, Burns 2019)
-def audsleyRiLO_1 (i, tasks, core, core_id):
+def audsleyRiLO_1 (i, tasks, core_id):
   task = tasks[i]
   chp = findHp(i, tasks, core_id)
-  if riLO_1Step(task, chp, core) is None:
+  if riLO_1Step(task, chp, core_id) is None:
     return False
   return True
 
-def riHI_1Step (task, chpHI, chpLO, core):
+def riHI_1Step (task, chpHI, chpLO, core_id):
   RiHI_1 = task['C(HI)']
   task_deadline = task['D']
-  if (task['migrating'] and core == task['migration_route'][0]):
+  if (task['migrating'] and core_id == task['migration_route'][0]):
     task_deadline = task['D1']
-  elif (task['migrating'] and core == task['migration_route'][1]):
+  elif (task['migrating'] and core_id == task['migration_route'][1]):
     task_deadline = task['D2']
   while True:
     newRiHI_1 = task['C(HI)']
@@ -283,10 +293,10 @@ def riHI_1Step (task, chpHI, chpLO, core):
     for chp_task in chpLO:
       chp_jitter = 0
       chp_deadline = chp_task['D']
-      if (chp_task['migrating'] and core == chp_task['migration_route'][0]):
+      if (chp_task['migrating'] and core_id == chp_task['migration_route'][0]):
         chp_jitter = chp_task['J']
         chp_deadline = chp_task['D1']
-      elif (chp_task['migrating'] and core == chp_task['migration_route'][1]):
+      elif (chp_task['migrating'] and core_id == chp_task['migration_route'][1]):
         chp_jitter = chp_task['J2']
         chp_deadline = chp_task['D2']
       newRiHI_1 += math.ceil((task['Ri(LO)'] + chp_jitter) / chp_deadline) * chp_task['C(LO)']
@@ -296,19 +306,19 @@ def riHI_1Step (task, chpHI, chpLO, core):
       return RiHI_1
     RiHI_1 = newRiHI_1
 
-def audsleyRiHI_1 (i, tasks, core, core_id):
+def audsleyRiHI_1 (i, tasks, core_id):
   task = tasks[i]
   if task['HI']:
-    chpHI = findCHpHI(task, core, tasks, core_id)
-    chpLO = findCHpLO(task, core, tasks, core_id)
-    if riHI_1Step(task, chpHI, chpLO, core) is None:
+    chpHI = findCHpHI(task, tasks, core_id)
+    chpLO = findCHpLO(task, tasks, core_id)
+    if riHI_1Step(task, chpHI, chpLO, core_id) is None:
       return False
   return True
 
 # Calculate Ri(HI)' (cfr. Equation 11 in Xu, Burns 2019)
 def verifyRiHI_1 (core, core_id):
   for i in range(len(core['tasks'])):
-    if not audsleyRiHI_1(i, core['tasks'], core_id, core_id):
+    if not audsleyRiHI_1(i, core['tasks'], core_id):
       return False
   return True
 
@@ -343,17 +353,17 @@ def verify_mode_changes (cores):
         if not audsley(verification_cores[m_c], m_c, audsleyRiLO_1, True):
           return False
       crit_count += 1
-    for core in verification_cores:
+    for core_id in verification_cores:
       # Verify 3rd crit core
-      if core not in mode_change:
+      if core_id not in mode_change:
         # RTA for new HI-crit core after the boundary number is reached
         # This uses the priorities assigned during the preceding steps, no Audsley here
-        if not verifyRiHI_1(verification_cores[crit_core], crit_core):
+        if not verifyRiHI_1(verification_cores[core_id], core_id):
           return False
   return True
 
 # This function applies Audsley's OPA to the steady mode
-def audsley_rta_steady (i, tasks, core, core_id):
+def audsley_rta_steady (i, tasks, core_id):
   task = tasks[i]
   # Get LO-crit and HI-crit higher priority tasks
   hp = findHp(i, tasks, core_id)
@@ -364,19 +374,19 @@ def audsley_rta_steady (i, tasks, core, core_id):
 
 # This function returns the LO-crit tasks of a core
 # sorted by priority
-def get_LO_crit_tasks (tasks, core):
+def get_LO_crit_tasks (tasks, core_id):
   result = []
   for i in range(len(tasks)):
     task = tasks[i]
     if not task['HI'] and not task['migrating']:
       result.append([i, task])
-  if core == 'c1':
+  if core_id == 'c1':
     result.sort(key=functools.cmp_to_key(utils.sort_tasks_priority_c1))
-  elif core == 'c2':
+  elif core_id == 'c2':
     result.sort(key=functools.cmp_to_key(utils.sort_tasks_priority_c2))
-  elif core == 'c3':
+  elif core_id == 'c3':
     result.sort(key=functools.cmp_to_key(utils.sort_tasks_priority_c3))
-  elif core == 'c4':
+  elif core_id == 'c4':
     result.sort(key=functools.cmp_to_key(utils.sort_tasks_priority_c4))
   return [r[0] for r in result]
 
@@ -428,11 +438,9 @@ def verify_migration_task (task, cores):
             if verify_mode_changes(verification_cores_mode):
               assigned_migrating = True
               assigned = True
-              cores[next_core]['tasks'].append(task)
+              cores[next_core]['tasks'] = verification_cores_mode[next_core]['tasks']
               cores[next_core]['utilization'] += task['U']
               migrating_task = cores[next_core]['tasks'][LO_crit_task_i]
-              migrating_task['migrating'] = True
-              migrating_task['migration_route'] = migration_group
               break
           if assigned_migrating:
             break
