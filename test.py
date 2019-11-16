@@ -2,19 +2,24 @@ import unittest
 import rta
 import copy
 
-# Unit tests for the RTA algorithms
+# NOTATION
 
-# NOTATION USED IN THE COMMENTS
+# TASKSETS:
+# Every taskset definition is preceded by a description of the tasks in which
+# each task is represented by a 4-uple (T, Cis, L, P) where
+# T is the period/deadline, Cis is a list of WCETs ([Ci(LO), Ci(HI)]),
+# L is the criticality, P is the priority (higher number => higher priority).
 
-# TASKSETS: Tasks are defined according to the logic of the rta scripts
-# every taskset is preceded by a description of the tasks in which
-# each taskset is represented by a 4-uple (T, Cis, L, P) in which
-# T is the period/deadline, Cis is an array of WCETs (first LO-crit, then HI-crit),
-# L is the criticality, P is the priority.
+# RTA:
+# Some tests are preceded by their RTA calculations.
+# We use the symbol `==>` to indicate a subsequent iteration of the calculation.
+# A successful analysis is marked with `(OK)`, a failure with `(!!! KO)`.
 
-# All tests are supposed to be for core c1
 
 # UTILITY FUNCTIONS
+
+# The following functions run the RTA algorithms on all the task of a taskset.
+# All tests are supposed to be for core c1
 
 # Vestal's classic algorithm
 def testVestal (tasks):
@@ -23,28 +28,28 @@ def testVestal (tasks):
       return False
   return True
 
-# Ri(LO)
+# Ri(LO) (cfr. Equation 7 in Xu, Burns 2019)
 def testRiLO (tasks):
   for i in range(len(tasks)):
     if not rta.audsley_rta_steady(i, tasks, 'c1'):
       return False
   return True
 
-# Ri(MIX)
+# Ri(MIX) (cfr. Equation 9 in Xu, Burns 2019)
 def testRiMIX (tasks):
   for i in range(len(tasks)):
     if not rta.audsleyRiMIX(i, tasks, 'c1'):
       return False
   return True
 
-# Ri(LO')
+# Ri(LO') (cfr. Equation 9 in Xu, Burns 2019)
 def testRiLO_1 (tasks):
   for i in range(len(tasks)):
     if not rta.audsleyRiLO_1(i, tasks, 'c1'):
       return False
   return True
 
-# Ri(HI')
+# Ri(HI') (cfr. Equation 11 in Xu, Burns 2019)
 def testRiHI_1 (tasks):
   for i in range(len(tasks)):
     if not rta.audsleyRiHI_1(i, tasks, 'c1'):
@@ -225,7 +230,7 @@ class TestRTA(unittest.TestCase):
     # Ri(HI') = 4 + ceiling(3/3) * 1 = 5 (OK)
     self.assertEqual(testRiHI_1(tasks), True)
 
-  # No algorithm should be able to schedule TASKSET_7
+  # No algorithm should be able to schedule TASKSET_8
   def test_TASKSET_8(self):
     tasks = copy.deepcopy(TASKSET_8)
     self.assertEqual(testVestal(tasks), False)
