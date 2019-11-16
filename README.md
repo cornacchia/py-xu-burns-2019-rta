@@ -15,6 +15,13 @@ $ python3 ./run.py
 
 The script will run the four tests described in the paper and produce as results four charts which will be saved at a configurable path (cfr. [Configuration](#configuration)).
 
+## Unit tests
+To run the unit tests for the RTA algorithms:
+```bash
+$ cd path/to/script/directory
+$ python3 ./test.py
+```
+
 ## Configuration
 The file `config.py` defines some options for the script:
 * `CHECK_NO_MIGRATION`, `CHECK_MODEL_1`, etc. defines which models to test
