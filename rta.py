@@ -71,10 +71,6 @@ def calcRi (task, hp):
     if newRi > task['D']:
       return None
     if newRi == Ri:
-      # Update Jitter and Deadline for next steps
-      task['J'] = task['J'] + (Ri - task['C(LO)'])
-      task['D1'] = task['D'] - (Ri - task['C(LO)'])
-      task['Ri(LO)'] = Ri
       return newRi
     Ri = newRi
 
@@ -175,10 +171,11 @@ def calcRiLO (task, hp):
     if newRiLO > task['D']:
       return None
     if newRiLO == RiLO:
-      # Update Jitter and Deadline for next steps
-      task['J'] = task['J'] + (RiLO - task['C(LO)'])
-      task['D1'] = task['D'] - (RiLO - task['C(LO)'])
-      task['Ri(LO)'] = RiLO
+      if 'Ri(LO)' not in task:
+        # Update Jitter and Deadline for next steps
+        task['J'] = task['J'] + (RiLO - task['C(LO)'])
+        task['D1'] = task['D'] - (RiLO - task['C(LO)'])
+        task['Ri(LO)'] = RiLO
       return newRiLO
     RiLO = newRiLO
 
@@ -263,11 +260,10 @@ def riLO_1Step (task, chp, core_id):
     if newRiLO_1 > task_deadline:
       return None
     if newRiLO_1 == RiLO_1:
-      if ('J' in task):
+      if 'Ri(LO)' in task:
         task['J2'] = task['J'] + (RiLO_1 - task['C(LO)'])
-      if ('D1' in task):
         task['D2'] = task['D1'] - (RiLO_1 - task['C(LO)'])
-      task['Ri(LO)'] = RiLO_1
+        task['Ri(LO)'] = RiLO_1
       return RiLO_1
     RiLO_1 = newRiLO_1
 
@@ -327,6 +323,8 @@ def verify_mode_changes (cores):
     crit_count = 0
     verification_cores = copy.deepcopy(cores)
     for crit_core in mode_change:
+      # Calculate Ri(LO) (necessary for Ri(MIX))
+      audsley(verification_cores[crit_core], crit_core, audsley_rta_steady, True)
       migration_cores = []
       new_crit_core_tasks = []
       for task in verification_cores[crit_core]['tasks']:
@@ -356,8 +354,10 @@ def verify_mode_changes (cores):
     for core_id in verification_cores:
       # Verify 3rd crit core
       if core_id not in mode_change:
-        # RTA for new HI-crit core after the boundary number is reached
-        # This uses the priorities assigned during the preceding steps, no Audsley here
+        # RTA for new HI-crit cores after the boundary number is reached
+        # Calculate Ri(LO) and Ri(LO'), necessary for Ri(HI)
+        audsley(verification_cores[core_id], core_id, audsley_rta_steady, True)
+        audsley(verification_cores[core_id], core_id, audsleyRiLO_1, True)
         if not verifyRiHI_1(verification_cores[core_id], core_id):
           return False
   return True
@@ -440,7 +440,6 @@ def verify_migration_task (task, cores):
               assigned = True
               cores[next_core]['tasks'] = verification_cores_mode[next_core]['tasks']
               cores[next_core]['utilization'] += task['U']
-              migrating_task = cores[next_core]['tasks'][LO_crit_task_i]
               break
           if assigned_migrating:
             break
