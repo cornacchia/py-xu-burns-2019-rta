@@ -56,6 +56,16 @@ def testRiHI_1 (tasks):
       return False
   return True
 
+# Taskset 0:
+# t1: (4, [2, 4], HI, 2)
+# t2: (5, [1], LO, 1)
+# t3: (5, [1], LO, 0)
+TASKSET_0 = [
+  {'HI': True, 'C(LO)': 2, 'C(HI)': 4, 'D': 4, 'J': 0, 'migrating': False, 'migration_route': [], 'P': {'c1': 2}},
+  {'HI': False, 'C(LO)': 1, 'C(HI)': -1, 'D': 5, 'J': 0, 'migrating': False, 'migration_route': [], 'P': {'c1': 1}},
+  {'HI': False, 'C(LO)': 1, 'C(HI)': -1, 'D': 5, 'J': 0, 'migrating': False, 'migration_route': [], 'P': {'c1': 0}}
+]
+
 # Taskset 1:
 # t1: (4, [2, 4], HI, 2)
 # t2: (5, [1, 2], HI, 1)
@@ -124,7 +134,27 @@ TASKSET_8 = [
   {'HI': True, 'C(LO)':2, 'C(HI)': 4, 'D': 1, 'J': 0, 'migrating': False, 'migration_route': [], 'P': {'c1': 0}}
 ]
 
+# Taskset 9: this is an always schedulable edge case
+# t1: (8, [2, 4], HI, 1)
+# t2: (8, [2, 4], HI, 0)
+
+TASKSET_9 = [
+  {'HI': True, 'C(LO)':2, 'C(HI)': 4, 'D': 8, 'J': 0, 'migrating': False, 'migration_route': [], 'P': {'c1': 1}},
+  {'HI': True, 'C(LO)':2, 'C(HI)': 4, 'D': 8, 'J': 0, 'migrating': False, 'migration_route': [], 'P': {'c1': 0}}
+]
+
 class TestRTA(unittest.TestCase):
+
+  # TASKSET_0 should be schedulable according to Vestal's algorithm
+  def test_Vestal_TASKSET_0(self):
+    tasks = copy.deepcopy(TASKSET_0)
+    # t1: (4, [2, 4], HI, 2)
+    # t2: (5, [1], LO, 1)
+    # t3: (5, [1], LO, 0)
+    # R1 = 4 + 0 = 4 (OK)
+    # R2 = 1 + ceiling(1/4) * 2 = 3 ==> 1 + ceiling(3/4) * 2 = 3 (OK)
+    # R3 = 1 + ceiling(1/4) * 2 + ceiling(1/5) * 1 = 4 ==> 1 + ceiling(4/4) * 2 + ceiling(4/5) * 1 = 4 (OK)
+    self.assertEqual(testVestal(tasks), True)
 
   # TASKSET_1 should be schedulable according to Ri(LO)
   # We only use C(LO)
@@ -239,7 +269,14 @@ class TestRTA(unittest.TestCase):
     self.assertEqual(testRiLO_1(tasks), False)
     self.assertEqual(testRiHI_1(tasks), False)
 
-
+  # TASKSET_9 should be schedulable according to all the algorithms
+  def test_TASKSET_9(self):
+    tasks = copy.deepcopy(TASKSET_9)
+    self.assertEqual(testVestal(tasks), True)
+    self.assertEqual(testRiLO(tasks), True)
+    self.assertEqual(testRiMIX(tasks), True)
+    self.assertEqual(testRiLO_1(tasks), True)
+    self.assertEqual(testRiHI_1(tasks), True)
 
 
 
