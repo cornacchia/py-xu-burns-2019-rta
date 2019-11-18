@@ -18,10 +18,10 @@ import copy
 
 # UTILITY FUNCTIONS
 
-# The following functions run the RTA algorithms on all the task of a taskset.
-# All tests are supposed to be for core c1
+# The following functions run the RTA algorithms on all the tasks of a taskset.
+# All tests are assumed to be for core "c1".
 
-# Vestal's classic algorithm
+# Vestal's algorithm
 def testVestal (tasks):
   for i in range(len(tasks)):
     if not rta.audsley_rta_no_migration(i, tasks, 'c1'):
