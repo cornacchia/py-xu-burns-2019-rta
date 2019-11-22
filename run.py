@@ -30,25 +30,29 @@ def run_first_test ():
   finish_U = 4.6
   # Utilization step
   step = 0.028
-  # Number of tests to run for single utilization step
-  number_of_tests = 100
   first_test_bar = Bar('First test', max=51)
   while U <= finish_U:
     res_local = [[U, 0], [U, 0], [U, 0], [U, 0]]
-    for _ in range(number_of_tests):
+    for _ in range(config.NUMBER_OF_TESTS):
       new_taskset = generate_taskset(24, 0.5, 2, U)
       if config.CHECK_NO_MIGRATION and verify_no_migration(copy.deepcopy(new_taskset)):
         for i in range(4):
           res_local[i][1] += 1
       else:
-        if config.CHECK_MODEL_1 and verify_model_1(copy.deepcopy(new_taskset)):
+        taskset_1 = copy.deepcopy(new_taskset)
+        taskset_2 = copy.deepcopy(new_taskset)
+        taskset_3 = copy.deepcopy(new_taskset)
+        model_1_schedulable = verify_model_1(taskset_1)
+        model_2_schedulable = verify_model_2(taskset_2)
+        model_3_schedulable = verify_model_3(taskset_3)
+        if config.CHECK_MODEL_1 and model_1_schedulable:
           res_local[1][1] += 1
-        if config.CHECK_MODEL_2 and verify_model_2(copy.deepcopy(new_taskset)):
+        if config.CHECK_MODEL_2 and model_2_schedulable:
           res_local[2][1] += 1
-        if config.CHECK_MODEL_3 and verify_model_3(copy.deepcopy(new_taskset)):
+        if config.CHECK_MODEL_3 and model_3_schedulable:
           res_local[3][1] += 1
     for i in range(4):
-      res_local[i][1] = res_local[i][1] * 100 / number_of_tests
+      res_local[i][1] = res_local[i][1] * 100 / config.NUMBER_OF_TESTS
       res_global[i].append(res_local[i])
     U += step
     first_test_bar.next()
@@ -68,10 +72,8 @@ def check_utilization_total_schedulability (n, p, f):
   U = 3.2
   # Utilization step
   step = 0.028
-  # Number of tests to run for single utilization step
-  number_of_tests = 100
   while U <= 4.6:
-    for _ in range(number_of_tests):
+    for _ in range(config.NUMBER_OF_TESTS):
       new_taskset = generate_taskset(n, p, f, U)
       taskset_utilization = calc_total_utilization(new_taskset)
       total_utilizations += taskset_utilization

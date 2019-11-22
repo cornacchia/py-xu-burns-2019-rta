@@ -18,6 +18,9 @@ WORST_FIT_BP = True
 VESTAL_CLASSIC = True
 VESTAL_WITH_MONITOR = False
 
+# Number of tests to run for each Utilization step
+NUMBER_OF_TESTS = 100
+
 # Results will be saved in RESULTS_DIR
 RESULTS_DIR = '/tmp/'
 
