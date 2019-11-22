@@ -55,8 +55,27 @@ def findHp (i, tasks, core_id):
       result.append(other_task)
   return result
 
-# Vestal's algorithm
+# Vestal's algorithm (classic version)
 def calcRi (task, hp):
+  start_Ri = task['C(LO)']
+  if task['HI']:
+    start_Ri = task['C(HI)']
+  Ri = start_Ri
+  while True:
+    newRi = start_Ri
+    for hp_task in hp:
+      hp_C = hp_task['C(LO)']
+      if hp_task['HI']:
+        hp_C = hp_task['C(HI)']
+      newRi += math.ceil(Ri / hp_task['D']) * hp_C
+    if newRi > task['D']:
+      return None
+    if newRi == Ri:
+      return newRi
+    Ri = newRi
+
+# Vestal's algorithm (with monitor)
+def calcRi_monitor (task, hp):
   start_Ri = task['C(LO)']
   if task['HI']:
     start_Ri = task['C(HI)']
@@ -77,7 +96,11 @@ def calcRi (task, hp):
 def audsley_rta_no_migration (i, tasks, core_id):
   task = tasks[i]
   hp = findHp(i, tasks, core_id)
-  Ri = calcRi(task, hp)
+  Ri = None
+  if (config.VESTAL_CLASSIC):
+    Ri = calcRi(task, hp)
+  elif (config.VESTAL_WITH_MONITOR):
+    Ri = calcRi_monitor(task, hp)
   if Ri is None:
     return False
   return True
@@ -247,7 +270,10 @@ def riLO_1Step (task, chp, core_id):
   RiLO_1 = task['C(LO)']
   task_deadline = task['D']
   if (task['migrating'] and core_id in task['migration_route']):
-    task_deadline = task['D1']
+    if 'D2' in task:
+      task_deadline = task['D2']
+    else:
+      task_deadline = task['D1']
   while True:
     newRiLO_1 = task['C(LO)']
     for chp_task in chp:

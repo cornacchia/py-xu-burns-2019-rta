@@ -14,6 +14,10 @@ RUN_FOURTH_TEST = True
 FIRST_FIT_BP = False
 WORST_FIT_BP = True
 
+# Select version of Vestal's algorithm to use
+VESTAL_CLASSIC = True
+VESTAL_WITH_MONITOR = False
+
 # Results will be saved in RESULTS_DIR
 RESULTS_DIR = '/tmp/'
 
