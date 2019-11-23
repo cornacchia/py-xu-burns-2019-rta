@@ -17,6 +17,8 @@ WORST_FIT_BP = True
 # Select version of Vestal's algorithm to use
 VESTAL_CLASSIC = True
 VESTAL_WITH_MONITOR = False
+# Always consider HI-crit interference from HI-crit tasks
+ALWAYS_HI_CRIT = False
 
 # Number of tests to run for each Utilization step
 NUMBER_OF_TESTS = 100
@@ -60,6 +62,8 @@ CORES_MODEL_1 = {
     'considered': False,
     # Total utilization
     'utilization': 0,
+    # Flag to indicate criticality change
+    'crit': False,
     # Migration routes
     'migration': [
       ['c2', 'c3']
@@ -69,6 +73,7 @@ CORES_MODEL_1 = {
     'tasks': [],
     'considered': False,
     'utilization': 0,
+    'crit': False,
     'migration': [
       ['c3', 'c4']
     ]
@@ -77,6 +82,7 @@ CORES_MODEL_1 = {
     'tasks': [],
     'considered': False,
     'utilization': 0,
+    'crit': False,
     'migration': [
       ['c4', 'c1']
     ]
@@ -85,6 +91,7 @@ CORES_MODEL_1 = {
     'tasks': [],
     'considered': False,
     'utilization': 0,
+    'crit': False,
     'migration': [
       ['c1', 'c2']
     ]
@@ -97,6 +104,7 @@ CORES_MODEL_2 = {
     'tasks': [],
     'considered': False,
     'utilization': 0,
+    'crit': False,
     'migration': [
       ['c2', 'c4'],
       ['c3', 'c4']
@@ -106,6 +114,7 @@ CORES_MODEL_2 = {
     'tasks': [],
     'considered': False,
     'utilization': 0,
+    'crit': False,
     'migration': [
       ['c4', 'c3'],
       ['c1', 'c3']
@@ -115,6 +124,7 @@ CORES_MODEL_2 = {
     'tasks': [],
     'considered': False,
     'utilization': 0,
+    'crit': False,
     'migration': [
       ['c1', 'c2'],
       ['c4', 'c2']
@@ -124,6 +134,7 @@ CORES_MODEL_2 = {
     'tasks': [],
     'considered': False,
     'utilization': 0,
+    'crit': False,
     'migration': [
       ['c3', 'c1'],
       ['c2', 'c1']
@@ -137,6 +148,7 @@ CORES_MODEL_3 = {
     'tasks': [],
     'considered': False,
     'utilization': 0,
+    'crit': False,
     'migration': [
       ['c2', 'c3'],
       ['c2', 'c4'],
@@ -150,6 +162,7 @@ CORES_MODEL_3 = {
     'tasks': [],
     'considered': False,
     'utilization': 0,
+    'crit': False,
     'migration': [
       ['c3', 'c4'],
       ['c3', 'c1'],
@@ -163,6 +176,7 @@ CORES_MODEL_3 = {
     'tasks': [],
     'considered': False,
     'utilization': 0,
+    'crit': False,
     'migration': [
       ['c4', 'c1'],
       ['c4', 'c2'],
@@ -176,6 +190,7 @@ CORES_MODEL_3 = {
     'tasks': [],
     'considered': False,
     'utilization': 0,
+    'crit': False,
     'migration': [
       ['c1', 'c2'],
       ['c1', 'c3'],

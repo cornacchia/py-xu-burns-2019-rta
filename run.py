@@ -36,21 +36,19 @@ def run_first_test ():
     for _ in range(config.NUMBER_OF_TESTS):
       new_taskset = generate_taskset(24, 0.5, 2, U)
       if config.CHECK_NO_MIGRATION and verify_no_migration(copy.deepcopy(new_taskset)):
-        for i in range(4):
-          res_local[i][1] += 1
-      else:
-        taskset_1 = copy.deepcopy(new_taskset)
-        taskset_2 = copy.deepcopy(new_taskset)
-        taskset_3 = copy.deepcopy(new_taskset)
-        model_1_schedulable = verify_model_1(taskset_1)
-        model_2_schedulable = verify_model_2(taskset_2)
-        model_3_schedulable = verify_model_3(taskset_3)
-        if config.CHECK_MODEL_1 and model_1_schedulable:
-          res_local[1][1] += 1
-        if config.CHECK_MODEL_2 and model_2_schedulable:
-          res_local[2][1] += 1
-        if config.CHECK_MODEL_3 and model_3_schedulable:
-          res_local[3][1] += 1
+        res_local[0][1] += 1
+      taskset_1 = copy.deepcopy(new_taskset)
+      taskset_2 = copy.deepcopy(new_taskset)
+      taskset_3 = copy.deepcopy(new_taskset)
+      model_1_schedulable = verify_model_1(taskset_1)
+      model_2_schedulable = verify_model_2(taskset_2)
+      model_3_schedulable = verify_model_3(taskset_3)
+      if config.CHECK_MODEL_1 and model_1_schedulable:
+        res_local[1][1] += 1
+      if config.CHECK_MODEL_2 and model_2_schedulable:
+        res_local[2][1] += 1
+      if config.CHECK_MODEL_3 and model_3_schedulable:
+        res_local[3][1] += 1
     for i in range(4):
       res_local[i][1] = res_local[i][1] * 100 / config.NUMBER_OF_TESTS
       res_global[i].append(res_local[i])

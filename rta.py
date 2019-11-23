@@ -49,6 +49,7 @@ def findHp (i, tasks, core_id):
   task = tasks[i]
   for j in range(len(tasks)):
     if j == i:
+      assert (tasks[j] == tasks[i]), 'Indexes did not match in findHp'
       continue
     other_task = tasks[j]
     if other_task['P'][core_id] < 0 or other_task['P'][core_id] > task['P'][core_id]:
@@ -65,7 +66,8 @@ def calcRi (task, hp):
     newRi = start_Ri
     for hp_task in hp:
       hp_C = hp_task['C(LO)']
-      if hp_task['HI']:
+      # Only consider C(HI) interference if task i is HI-crit
+      if task['HI']:
         hp_C = hp_task['C(HI)']
       newRi += math.ceil(Ri / hp_task['D']) * hp_C
     if newRi > task['D']:
@@ -84,7 +86,28 @@ def calcRi_monitor (task, hp):
     newRi = start_Ri
     for hp_task in hp:
       hp_C = hp_task['C(LO)']
+      # Only consider C(HI) interference if both task j and task i are HI-crit
       if task['HI'] and hp_task['HI']:
+        hp_C = hp_task['C(HI)']
+      newRi += math.ceil(Ri / hp_task['D']) * hp_C
+    if newRi > task['D']:
+      return None
+    if newRi == Ri:
+      return newRi
+    Ri = newRi
+
+# This modified version of Vestal's algorithm always considers HI-crit interference from HI-crit tasks
+def calcRi_alwaysHICrit (task, hp):
+  start_Ri = task['C(LO)']
+  if task['HI']:
+    start_Ri = task['C(HI)']
+  Ri = start_Ri
+  while True:
+    newRi = start_Ri
+    for hp_task in hp:
+      hp_C = hp_task['C(LO)']
+      # Only consider C(HI) interference if task i is HI-crit
+      if hp_task['HI']:
         hp_C = hp_task['C(HI)']
       newRi += math.ceil(Ri / hp_task['D']) * hp_C
     if newRi > task['D']:
@@ -96,13 +119,18 @@ def calcRi_monitor (task, hp):
 def audsley_rta_no_migration (i, tasks, core_id):
   task = tasks[i]
   hp = findHp(i, tasks, core_id)
+  for hp_task in hp:
+    assert (hp_task['P'][core_id] > task['P'][core_id] or hp_task['P'][core_id] < 0), 'Error: findHP returned task with wrong priority'
   Ri = None
   if (config.VESTAL_CLASSIC):
     Ri = calcRi(task, hp)
   elif (config.VESTAL_WITH_MONITOR):
     Ri = calcRi_monitor(task, hp)
+  elif (config.ALWAYS_HI_CRIT):
+    Ri = calcRi_alwaysHICrit(task, hp)
   if Ri is None:
     return False
+  assert (Ri <= task['D']), 'No migration algorithm produced a response time greater than the deadline'
   return True
 
 # Find which task, in this core, has the longest deadline
@@ -140,6 +168,8 @@ def audsley (core, core_id, audsley_rta, side_effect):
     lon_dead_HI_i = find_lon_dead(core_id, verification_tasks, True)
     if lon_dead_HI_i >= 0:
       lon_dead_HI = verification_tasks[lon_dead_HI_i]
+      assert (lon_dead_HI['HI'] == True), 'Error extracting HI-crit task during audsley OPA'
+      assert (lon_dead_HI['P'][core_id] < 0), 'Assigning priority to already prioritized HI-crit task'
       lon_dead_HI['P'][core_id] = p_lvl
       # Check if system schedulable with p_lvl priority assinged to to this task
       lon_dead_HI_result = audsley_rta(lon_dead_HI_i, verification_tasks, core_id)
@@ -152,6 +182,8 @@ def audsley (core, core_id, audsley_rta, side_effect):
     lon_dead_LO_i = find_lon_dead(core_id, verification_tasks, False)
     if lon_dead_LO_i >= 0:
       lon_dead_LO = verification_tasks[lon_dead_LO_i]
+      assert (lon_dead_LO['HI'] == False), 'Error extracting LO-crit task during audsley OPA'
+      assert (lon_dead_LO['P'][core_id] < 0), 'Assigning priority to already prioritized LO-crit task'
       lon_dead_LO['P'][core_id] = p_lvl
       lon_dead_LO_result = audsley_rta(lon_dead_LO_i, verification_tasks, core_id)
       if lon_dead_LO_result:
@@ -161,6 +193,8 @@ def audsley (core, core_id, audsley_rta, side_effect):
   # In some cases we want to remember the priorities assigned at this point
   if side_effect:
     core['tasks'] = verification_tasks
+  for task in verification_tasks:
+    assert(task['P'][core_id] >= 0), 'Audsley OPA did not assign priority to some task'
   return True
 
 def verify_no_migration_task (task, cores):
@@ -169,20 +203,26 @@ def verify_no_migration_task (task, cores):
   assigned = False
   count = 0
   next_core = -1
+  considered_cores = []
   while not assigned and count < 4:
     count += 1
     next_core = get_next_core(task, cores)
-    if next_core is not None:
-      cores[next_core]['considered'] = True
-      # Always clone cores to avoid side effects
-      verification_core = copy.deepcopy(cores[next_core])
-      verification_core['tasks'].append(task)
-      # Check core schedulability with Audsley's OPA
-      if audsley(verification_core, next_core, audsley_rta_no_migration, True):
-        cores[next_core]['tasks'] = verification_core['tasks']
-        cores[next_core]['utilization'] += task['U']
-        assigned = True
-    return assigned
+    assert (next_core not in considered_cores), 'Picked the same core 2 times'
+    considered_cores.append(next_core)
+    if next_core is None:
+      return False
+    cores[next_core]['considered'] = True
+    # Always clone cores to avoid side effects
+    verification_core = copy.deepcopy(cores[next_core])
+    verification_core['tasks'].append(task)
+    # Check core schedulability with Audsley's OPA
+    if audsley(verification_core, next_core, audsley_rta_no_migration, False):
+      cores[next_core]['tasks'] = verification_core['tasks']
+      for task in cores[next_core]['tasks']:
+        assert (task['P'][next_core] < 0), 'No migration algorithm assigned side effect priority'
+      cores[next_core]['utilization'] += task['U']
+      assigned = True
+  return assigned
 
 # Calculate Ri(LO) (cfr. Equation 7 in Xu, Burns 2019)
 def calcRiLO (task, hp):
@@ -212,6 +252,7 @@ def findCHp (task, tasks, core_id):
 def findCHpHI (task, tasks, core_id):
   result = []
   for other_task in tasks:
+    assert (other_task['P'][core_id] >= 0), 'No priorities assigned for this core'
     if other_task['HI'] and (other_task['P'][core_id] > task['P'][core_id]):
       result.append(other_task)
   return result
@@ -219,6 +260,7 @@ def findCHpHI (task, tasks, core_id):
 def findCHpLO (task, tasks, core_id):
   result = []
   for other_task in tasks:
+    assert (other_task['P'][core_id] >= 0), 'No priorities assigned for this core'
     if not other_task['HI'] and (other_task['P'][core_id] > task['P'][core_id]):
       result.append(other_task)
   return result
@@ -226,7 +268,7 @@ def findCHpLO (task, tasks, core_id):
 def findCHpMIG (task, tasks, core_id):
   result = []
   for other_task in tasks:
-    if (other_task['migrating'] and core_id not in other_task['migration_route']) and (other_task['P'][core_id] > task['P'][core_id]):
+    if other_task['migrating'] and (other_task['P'][core_id] > task['P'][core_id]):
       result.append(other_task)
   return result
 
@@ -243,7 +285,7 @@ def riMIXStep (task, chp, chpMIG):
         chp_val = chp_task['C(HI)']
       newRiMIX += math.ceil(RiMIX / chp_task['D']) * chp_val
     for chp_mig in chpMIG:
-      newRiMIX += math.ceil(task['Ri(LO)'] / chp_mig['D']) * chp_mig['Ri(LO)']
+      newRiMIX += math.ceil(task['Ri(LO)'] / chp_mig['D']) * chp_mig['C(LO)']
     if newRiMIX > task['D']:
       return None
     if newRiMIX == RiMIX:
@@ -262,6 +304,7 @@ def audsleyRiMIX (i, tasks, core_id):
 # Calculate Ri(MIX) (cfr. Equation 9 in Xu, Burns 2019)
 def verify_RiMIX (core, core_id):
   for i in range(len(core['tasks'])):
+    assert (core['tasks'][i]['P'][core_id] >= 0), 'Attempting to run RiMIX on task with no priority for current core'
     if not audsleyRiMIX(i, core['tasks'], core_id):
       return False
   return True
@@ -270,6 +313,7 @@ def riLO_1Step (task, chp, core_id):
   RiLO_1 = task['C(LO)']
   task_deadline = task['D']
   if (task['migrating'] and core_id in task['migration_route']):
+    assert ('Ri(LO)' in task), 'Migrating task with no response time in steady mode found'
     if 'D2' in task:
       task_deadline = task['D2']
     else:
@@ -278,18 +322,19 @@ def riLO_1Step (task, chp, core_id):
     newRiLO_1 = task['C(LO)']
     for chp_task in chp:
       chp_jitter = 0
-      chp_deadline = chp_task['D']
       if (chp_task['migrating'] and core_id in chp_task['migration_route']):
-        chp_jitter = chp_task['J']
-        chp_deadline = chp_task['D1']
-      newRiLO_1 += math.ceil((RiLO_1 + chp_jitter) / chp_deadline) * chp_task['C(LO)']
+        if 'J2' in chp_task:
+          chp_jitter = chp_task['J2']
+        else:
+          chp_jitter = chp_task['J']
+      newRiLO_1 += math.ceil((RiLO_1 + chp_jitter) / chp_task['D']) * chp_task['C(LO)']
     if newRiLO_1 > task_deadline:
       return None
     if newRiLO_1 == RiLO_1:
       if 'Ri(LO)' in task:
         task['J2'] = task['J'] + (RiLO_1 - task['C(LO)'])
         task['D2'] = task['D1'] - (RiLO_1 - task['C(LO)'])
-        task['Ri(LO)'] = RiLO_1
+      task['Ri(LO)_1'] = RiLO_1
       return RiLO_1
     RiLO_1 = newRiLO_1
 
@@ -308,20 +353,23 @@ def riHI_1Step (task, chpHI, chpLO, core_id):
     task_deadline = task['D1']
   elif (task['migrating'] and core_id == task['migration_route'][1]):
     task_deadline = task['D2']
+  task_RiLO = -1
+  if 'Ri(LO)_1' in task:
+    task_RiLO = task['Ri(LO)_1']
+  else:
+    task_RiLO = task['Ri(LO)']
+  assert (task_RiLO >= 0), 'No Ri(LO) assigned to task in Ri(HI)'
   while True:
     newRiHI_1 = task['C(HI)']
     for chp_task in chpHI:
       newRiHI_1 += math.ceil(RiHI_1 / chp_task['D']) * chp_task['C(HI)']
     for chp_task in chpLO:
       chp_jitter = 0
-      chp_deadline = chp_task['D']
       if (chp_task['migrating'] and core_id == chp_task['migration_route'][0]):
         chp_jitter = chp_task['J']
-        chp_deadline = chp_task['D1']
       elif (chp_task['migrating'] and core_id == chp_task['migration_route'][1]):
         chp_jitter = chp_task['J2']
-        chp_deadline = chp_task['D2']
-      newRiHI_1 += math.ceil((task['Ri(LO)'] + chp_jitter) / chp_deadline) * chp_task['C(LO)']
+      newRiHI_1 += math.ceil((task_RiLO + chp_jitter) / chp_task['D']) * chp_task['C(LO)']
     if newRiHI_1 > task_deadline:
       return None
     if newRiHI_1 == RiHI_1:
@@ -348,10 +396,14 @@ def verify_mode_changes (cores):
   for mode_change in config.CORES_MODE_CHANGES:
     crit_count = 0
     verification_cores = copy.deepcopy(cores)
+    migration_cores = []
     for crit_core in mode_change:
       # Calculate Ri(LO) (necessary for Ri(MIX))
       audsley(verification_cores[crit_core], crit_core, audsley_rta_steady, True)
-      migration_cores = []
+      for task in verification_cores[crit_core]['tasks']:
+        assert(task['P'][crit_core] >= 0), 'Crit core tasks do not have steady priorities'
+        assert('Ri(LO)' in task), 'No Ri(LO) for tasks in crit core'
+      current_migration_cores = []
       new_crit_core_tasks = []
       for task in verification_cores[crit_core]['tasks']:
         if not task['migrating']:
@@ -362,7 +414,10 @@ def verify_mode_changes (cores):
           # If it is already in HI-crit mode, migrate to the second
           if crit_count > 0 and (migration_core == mode_change[0] or migration_core == crit_core):
             migration_core = task['migration_route'][1]
+          assert (verification_cores[migration_core]['crit'] == False), 'Attempting to migrate to a HI-crit core'
           verification_cores[migration_core]['tasks'].append(task)
+          if migration_core not in current_migration_cores:
+            current_migration_cores.append(migration_core)
           if migration_core not in migration_cores:
             migration_cores.append(migration_core)
       # RTA for new HI-crit core
@@ -372,18 +427,23 @@ def verify_mode_changes (cores):
       # Remove migrated tasks from HI-crit core
       # This is done to test future interferences
       verification_cores[crit_core]['tasks'] = new_crit_core_tasks
+      for task in verification_cores[crit_core]['tasks']:
+        assert(task['migrating'] == False), 'Migrating task remained in HI-crit core'
       # RTA for cores which receive migrated tasks
-      for m_c in migration_cores:
+      for m_c in current_migration_cores:
         if not audsley(verification_cores[m_c], m_c, audsleyRiLO_1, True):
           return False
+        for task in verification_cores[m_c]['tasks']:
+          assert (task['P'][m_c] >= 0), 'Side effects did no work for Ri(LO)_1'
       crit_count += 1
     for core_id in verification_cores:
       # Verify 3rd crit core
       if core_id not in mode_change:
         # RTA for new HI-crit cores after the boundary number is reached
         # Calculate Ri(LO) and Ri(LO'), necessary for Ri(HI)
-        audsley(verification_cores[core_id], core_id, audsley_rta_steady, True)
-        audsley(verification_cores[core_id], core_id, audsleyRiLO_1, True)
+        if core_id not in migration_cores:
+          audsley(verification_cores[core_id], core_id, audsley_rta_steady, True)
+        #audsley(verification_cores[core_id], core_id, audsleyRiLO_1, True)
         if not verifyRiHI_1(verification_cores[core_id], core_id):
           return False
   return True
@@ -396,6 +456,8 @@ def audsley_rta_steady (i, tasks, core_id):
   RiLO = calcRiLO(task, hp)
   if RiLO is None:
     return False
+  assert (RiLO <= task['D']), 'RiLO returned response time greater than deadline'
+  assert (task['D1'] <= task['D']), 'Deadline D1 should be <= D'
   return True
 
 # This function returns the LO-crit tasks of a core
@@ -431,49 +493,66 @@ def verify_migration_task (task, cores):
   reset_considered(cores)
   assigned = False
   count = 0
+  considered_cores = []
   while not assigned and count < 4:
     count += 1
     next_core = get_next_core(task, cores)
-    if next_core is not None:
-      cores[next_core]['considered'] = True
-      # Always clone cores and tasks to avoid side effects
-      verification_task = copy.deepcopy(task)
-      verification_cores = copy.deepcopy(cores)
-      # Get clone of the core to check for schedulability
-      verification_core = verification_cores[next_core]
-      # Simulate assigning the task to the core
-      verification_core['tasks'].append(verification_task)
-      # Check steady mode
-      if audsley(verification_core, next_core, audsley_rta_steady, True):
-        # Tasks verified for steady mode, with priority and Ri(LO), C(LO), etc.
-        # Get the LO-crit tasks, sorted by priority
-        LO_crit_tasks = get_LO_crit_tasks(verification_core['tasks'], next_core)
-        assigned_migrating = False
-        priorities_backup = backup_priorities(verification_core['tasks'])
-        # Note: this is done in descending priority order (cfr. Semi2 model)
-        for LO_crit_task_i in LO_crit_tasks:
-          verification_cores_mode = copy.deepcopy(verification_cores)
-          assign_backup_priorities(verification_cores_mode[next_core], priorities_backup)
-          verification_task_mode = verification_cores_mode[next_core]['tasks'][LO_crit_task_i]
-          # Try to assign the task to each migration group until a schedulable configuration
-          # is found or all routes are tested
-          for migration_group in cores[next_core]['migration']:
-            verification_task_mode['migrating'] = True
-            verification_task_mode['migration_route'] = migration_group
-            # Verify mode changes
-            if verify_mode_changes(verification_cores_mode):
-              assigned_migrating = True
-              assigned = True
-              cores[next_core]['tasks'] = verification_cores_mode[next_core]['tasks']
-              cores[next_core]['utilization'] += task['U']
-              break
-          if assigned_migrating:
+    assert (next_core not in considered_cores), 'Picked the same core 2 times'
+    considered_cores.append(next_core)
+    if next_core is None:
+      return False
+    cores[next_core]['considered'] = True
+    # Always clone cores and tasks to avoid side effects
+    verification_task = copy.deepcopy(task)
+    verification_cores = copy.deepcopy(cores)
+    # Get clone of the core to check for schedulability
+    verification_core = verification_cores[next_core]
+    # Simulate assigning the task to the core
+    verification_core['tasks'].append(verification_task)
+    # Check steady mode
+    if audsley(verification_core, next_core, audsley_rta_steady, True):
+      for task in verification_core['tasks']:
+        assert(task['P'][next_core] >= 0), 'Side effects did not work for steady mode verification'
+      # Tasks verified for steady mode, with priority and Ri(LO), C(LO), etc.
+      # Get the LO-crit tasks, sorted by priority
+      LO_crit_tasks = get_LO_crit_tasks(verification_core['tasks'], next_core)
+      assigned_migrating = False
+      # priorities_backup = backup_priorities(verification_core['tasks'])
+      # Note: this is done in descending priority order (cfr. Semi2 model)
+      for LO_crit_task_i in LO_crit_tasks:
+        verification_cores_mode = copy.deepcopy(verification_cores)
+        # assign_backup_priorities(verification_cores_mode[next_core], priorities_backup) # TODO: non necessario perche' gia' si fa il clone?
+        verification_task_mode = verification_cores_mode[next_core]['tasks'][LO_crit_task_i]
+        assert (verification_task_mode['HI'] == False), 'Only LO-crit tasks should be eligible for migration'
+        assert (verification_task_mode['migrating'] == False), 'Already migrating LO-crit task selected for migration'
+        verification_task_mode['migrating'] = True
+        # Try to assign the task to each migration group until a schedulable configuration
+        # is found or all routes are tested
+        for migration_group in cores[next_core]['migration']:
+          verification_task_mode['migration_route'] = migration_group
+          # Every migrating task must have new priorities in the landing core
+          for core in migration_group:
+            verification_task_mode['P'][core] = -1
+          # Verify mode changes
+          if verify_mode_changes(verification_cores_mode):
+            assigned_migrating = True
+            assigned = True
+            cores[next_core]['tasks'] = verification_cores_mode[next_core]['tasks']
+            cores[next_core]['utilization'] += task['U']
             break
         if assigned_migrating:
           break
+      if assigned_migrating:
+        break
   if not assigned:
     return False
   return True
+
+def reset_all_priorities (cores):
+  for c in cores:
+    core = cores[c]
+    for task in core['tasks']:
+      task['P'] = {'c1': -1, 'c2': -1, 'c3': -1, 'c4': -1}
 
 # Point of entry for all the tests
 # 1. No migration model: Vestal's algorithm
@@ -484,36 +563,56 @@ def verify_migration_task (task, cores):
 def verify_no_migration (taskset):
   cores = copy.deepcopy(config.CORES_NO_MIGRATION)
   for task in taskset:
+    reset_all_priorities(cores)
     if not verify_no_migration_task(task, cores):
       return False
+  scheduled_tasks = 0
+  for c in cores:
+    scheduled_tasks += len(cores[c]['tasks'])
+  assert (scheduled_tasks == len(taskset)), 'No migration: Scheduled a number of task different than the taskset size'
   return True
 
 def verify_model_1 (taskset):
   cores = copy.deepcopy(config.CORES_MODEL_1)
   for task in taskset:
+    reset_all_priorities(cores)
     # Attempt assigning with no migration
     if not verify_no_migration_task(task, cores):
       # Otherwise attempt migration
       if task['HI'] or not verify_migration_task(task, cores):
         return False
+  scheduled_tasks = 0
+  for c in cores:
+    scheduled_tasks += len(cores[c]['tasks'])
+  assert (scheduled_tasks == len(taskset)), 'Model 1: Scheduled a number of task different than the taskset size'
   return True
 
 def verify_model_2 (taskset):
   cores = copy.deepcopy(config.CORES_MODEL_2)
   for task in taskset:
+    reset_all_priorities(cores)
     # Attempt assigning with no migration
     if not verify_no_migration_task(task, cores):
       # Otherwise attempt migration
       if task['HI'] or not verify_migration_task(task, cores):
         return False
+  scheduled_tasks = 0
+  for c in cores:
+    scheduled_tasks += len(cores[c]['tasks'])
+  assert (scheduled_tasks == len(taskset)), 'Model 2: Scheduled a number of task different than the taskset size'
   return True
 
 def verify_model_3 (taskset):
   cores = copy.deepcopy(config.CORES_MODEL_3)
   for task in taskset:
+    reset_all_priorities(cores)
     # Attempt assigning with no migration
     if not verify_no_migration_task(task, cores):
       # Otherwise attempt migration
       if task['HI'] or not verify_migration_task(task, cores):
         return False
+  scheduled_tasks = 0
+  for c in cores:
+    scheduled_tasks += len(cores[c]['tasks'])
+  assert (scheduled_tasks == len(taskset)), 'Model 3: Scheduled a number of task different than the taskset size'
   return True

@@ -88,10 +88,14 @@ def generate_taskset (n, p, f, maxU):
       new_task['C(LO)'] = new_task['C(HI)'] / f
     else:
       new_task['C(LO)'] = U[i] * T[i]
+      new_task['C(HI)'] = new_task['C(LO)'] * f
       LO_tot -= 1
     taskset.append(new_task)
   # Sort by criticality and utilization
   taskset.sort(key=functools.cmp_to_key(sort_tasks_criticality))
+  for task in taskset:
+    assert (task['U'] <= 1), 'Created task with utilization > 1'
+    assert (task['C(HI)'] / task['C(LO)'] == f), 'Something wrong with criticality factor'
   return taskset
 
 def calc_total_utilization (taskset):

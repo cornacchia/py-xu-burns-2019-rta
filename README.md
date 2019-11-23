@@ -7,7 +7,13 @@ The script runs on [python3](https://www.python.org/download/releases/3.0/) and 
 * [progress](https://pypi.org/project/progress/) -> `pip3 install progress`
 
 ## Usage
-To launch the script with the default configuration:
+To launch the script with the default configuration (in optimized version):
+```bash
+$ cd path/to/script/directory
+$ python3 -O ./run.py
+```
+
+To launch the script with the assertion checks:
 ```bash
 $ cd path/to/script/directory
 $ python3 ./run.py
