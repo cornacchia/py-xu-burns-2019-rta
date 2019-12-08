@@ -15,10 +15,10 @@ FIRST_FIT_BP = False
 WORST_FIT_BP = True
 
 # Select version of Vestal's algorithm to use
-VESTAL_CLASSIC = True
+VESTAL_CLASSIC = False
 VESTAL_WITH_MONITOR = False
 # Always consider HI-crit interference from HI-crit tasks
-ALWAYS_HI_CRIT = False
+ALWAYS_HI_CRIT = True
 
 # Number of tests to run for each Utilization step
 NUMBER_OF_TESTS = 100
