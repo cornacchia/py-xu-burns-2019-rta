@@ -95,7 +95,8 @@ def generate_taskset (n, p, f, maxU):
   taskset.sort(key=functools.cmp_to_key(sort_tasks_criticality))
   for task in taskset:
     assert (task['U'] <= 1), 'Created task with utilization > 1'
-    assert (task['C(HI)'] / task['C(LO)'] == f), 'Something wrong with criticality factor'
+    result_f = task['C(HI)'] / task['C(LO)']
+    assert (math.isclose(result_f, f)), 'Something wrong with criticality factor, expected: ' + str(f) + ', found: ' + str(result_f)
   return taskset
 
 def calc_total_utilization (taskset):
