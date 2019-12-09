@@ -5,6 +5,7 @@ The script runs on [python3](https://www.python.org/download/releases/3.0/) and 
 * [numpy](https://numpy.org/) -> `pip3 install numpy`
 * [matplotlib](https://matplotlib.org/) -> `pip3 install matplotlib`
 * [progress](https://pypi.org/project/progress/) -> `pip3 install progress`
+* [joblib](https://joblib.readthedocs.io/en/latest/index.html) -> `pip3 install joblib`
 
 ## Usage
 To launch the script with the default configuration (in optimized version):
@@ -30,6 +31,8 @@ $ python3 ./test.py
 
 ## Configuration
 The file `config.py` defines some options for the script:
+* `PARALLEL_JOBS` defines the number of parallel tests to be run (defaults to the number of CPUs)
+* `VESTAL_CLASSIC`, `VESTAL_WITH_MONITOR`, `ALWAYS_HI_CRIT` defines which version of Vestal's algorithm should be used for the non migrating tests
 * `CHECK_NO_MIGRATION`, `CHECK_MODEL_1`, etc. defines which models to test
 * `RUN_FIRST_TEST`, `RUN_SECOND_TEST`, etc. defines which tests to run
 * `FIRST_FIT_BP`, `WORST_FIT_BP` defines which bin-packing algorithm to use
