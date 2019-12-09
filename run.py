@@ -2,6 +2,7 @@ from progress.bar import Bar
 from taskset import generate_taskset, calc_total_utilization
 from rta import verify_no_migration, verify_model_1, verify_model_2, verify_model_3
 from plot import plot_data
+from joblib import Parallel, delayed
 import config
 import copy
 
@@ -21,6 +22,20 @@ def create_chart (results, x_label, y_label, filename):
     y_label,
     config.RESULTS_DIR + filename)
 
+# Run one instance of the tests (this functions is necessary for parallelism)
+def run_instance (n, p, f, U):
+  taskset = generate_taskset(n, p, f, U)
+  taskset_utilization = calc_total_utilization(taskset)
+  taskset_schedulability = [False, False, False, False]
+  if config.CHECK_NO_MIGRATION and verify_no_migration(copy.deepcopy(taskset)):
+    taskset_schedulability[0] = True
+  if config.CHECK_MODEL_1 and verify_model_1(copy.deepcopy(taskset)):
+    taskset_schedulability[1] = True
+  if config.CHECK_MODEL_2 and verify_model_2(copy.deepcopy(taskset)):
+    taskset_schedulability[2] = True
+  if config.CHECK_MODEL_3 and verify_model_3(copy.deepcopy(taskset)):
+    taskset_schedulability[3] = True
+  return taskset_schedulability, taskset_utilization
 
 # First test: check percentage of schedulable tasksets with different utilizations
 def run_first_test ():
@@ -33,22 +48,11 @@ def run_first_test ():
   first_test_bar = Bar('First test', max=51)
   while U <= finish_U:
     res_local = [[U, 0], [U, 0], [U, 0], [U, 0]]
-    for _ in range(config.NUMBER_OF_TESTS):
-      new_taskset = generate_taskset(24, 0.5, 2, U)
-      if config.CHECK_NO_MIGRATION and verify_no_migration(copy.deepcopy(new_taskset)):
-        res_local[0][1] += 1
-      taskset_1 = copy.deepcopy(new_taskset)
-      taskset_2 = copy.deepcopy(new_taskset)
-      taskset_3 = copy.deepcopy(new_taskset)
-      model_1_schedulable = verify_model_1(taskset_1)
-      model_2_schedulable = verify_model_2(taskset_2)
-      model_3_schedulable = verify_model_3(taskset_3)
-      if config.CHECK_MODEL_1 and model_1_schedulable:
-        res_local[1][1] += 1
-      if config.CHECK_MODEL_2 and model_2_schedulable:
-        res_local[2][1] += 1
-      if config.CHECK_MODEL_3 and model_3_schedulable:
-        res_local[3][1] += 1
+    results = Parallel(n_jobs=config.PARALLEL_JOBS)(delayed(run_instance)(24, 0.5, 2, U) for _ in range(config.NUMBER_OF_TESTS))
+    for result in results:
+      for i in range(4):
+        if result[0][i]:
+          res_local[i][1] += 1
     for i in range(4):
       res_local[i][1] = res_local[i][1] * 100 / config.NUMBER_OF_TESTS
       res_global[i].append(res_local[i])
@@ -71,20 +75,12 @@ def check_utilization_total_schedulability (n, p, f):
   # Utilization step
   step = 0.028
   while U <= 4.6:
-    for _ in range(config.NUMBER_OF_TESTS):
-      new_taskset = generate_taskset(n, p, f, U)
-      taskset_utilization = calc_total_utilization(new_taskset)
-      total_utilizations += taskset_utilization
-      if config.CHECK_NO_MIGRATION and verify_no_migration(copy.deepcopy(new_taskset)):
-        for i in range(4):
-          total_schedulable_utilizations[i] += taskset_utilization
-      else:
-        if config.CHECK_MODEL_1 and verify_model_1(copy.deepcopy(new_taskset)):
-          total_schedulable_utilizations[1] += taskset_utilization
-        if config.CHECK_MODEL_2 and verify_model_2(copy.deepcopy(new_taskset)):
-          total_schedulable_utilizations[2] += taskset_utilization
-        if config.CHECK_MODEL_3 and verify_model_3(copy.deepcopy(new_taskset)):
-          total_schedulable_utilizations[3] += taskset_utilization
+    results = Parallel(n_jobs=config.PARALLEL_JOBS)(delayed(run_instance)(n, p, f, U) for _ in range(config.NUMBER_OF_TESTS))
+    for result in results:
+      for i in range(4):
+        if result[0][i]:
+          total_schedulable_utilizations[i] += result[1]
+      total_utilizations += result[1]
     U += step
   return total_utilizations, total_schedulable_utilizations
 

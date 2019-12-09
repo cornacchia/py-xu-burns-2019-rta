@@ -1,3 +1,8 @@
+import multiprocessing
+
+# Set number of parallel jobs
+PARALLEL_JOBS = multiprocessing.cpu_count()
+
 # Enable/disable models to check
 CHECK_NO_MIGRATION = True
 CHECK_MODEL_1 = True
